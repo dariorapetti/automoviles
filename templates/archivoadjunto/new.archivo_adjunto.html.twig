@@ -1,0 +1,16 @@
+<div class="row">
+    <div class="col-md-12">
+        <div class="form-group prototype-archivo-adjunto" 
+             data-prototype="{% apply escape %}{% include 'archivoadjunto/prototype.archivo_adjunto.html.twig' with {'archivoAdjunto': form.archivosAdjuntos.vars.prototype} %}{% endapply %}">
+            {% for archivoAdjunto in form.archivosAdjuntos %}
+                {% include 'archivoadjunto/prototype.archivo_adjunto.html.twig' with {'customPath': customPath } %}
+            {% endfor %}
+        </div>
+
+        <div class="row margin-top-10">
+            <div class="col-md-12">
+                <button type="button" class="btn btn-secondary add-link-archivo-adjunto tooltips"><i class="fa fa-plus"></i> Agregar archivo</button>
+            </div>
+        </div>
+    </div>
+</div>

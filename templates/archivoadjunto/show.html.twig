@@ -1,0 +1,103 @@
+{% set archivosAdjuntosCollection = archivosAdjuntosCollection is defined ? archivosAdjuntosCollection : entity.archivosAdjuntos %}
+{% if archivosAdjuntosCollection is not empty %}
+
+    {% set imagePath = '/images/template/default/' %}
+    {% set filePath = app.request.basePath ~ '/uploads/archivo_adjunto/' ~ (customPath != '' ? customPath ~ '/' : '') %}
+    {% set targetAttr = targetBlank is defined ? 'target="_blank"' : ''%}
+
+    {# PDF object #}
+    <script src="{{ asset('plugins/pdf-object/pdfobject.min.js') }}"></script>
+
+    <div class="row">
+        <div class="col-md-12">
+
+            <label class="control-label">Adjuntos</label>
+
+            <div class="image-container padding-top-15 padding-bottom-15">
+                {% set archivosPDF = []%}                
+                {% for archivo in archivosAdjuntosCollection %}
+
+                    {% set extension = archivo.nombreArchivo|split('.')|last %}
+
+                    {% set nombreArchivo = archivo.nombre ~ (archivo.descripcion is not null ? (' - ' ~ archivo.descripcion) : '') %}
+
+                    {% if extension is not null and extension|lower == 'pdf' %}
+                        {% set archivosPDF = archivosPDF|merge([archivo])%}
+                    {% elseif extension is not null and (extension|lower == 'doc' or extension|lower == 'docx') %}
+                        <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips"
+                           title="{{ nombreArchivo }}" target="_tab" {{ targetAttr }}>
+                            <img src="{{ app.request.basePath ~ imagePath ~ 'Word.svg' }}" 
+                                 alt="{{ nombreArchivo }}"/>
+                        </a>
+                    {% elseif extension is not null and (extension|lower == 'xls' or extension|lower == 'xlsx' or extension|lower == 'xlsm') %}
+                        <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips"
+                           title="{{ nombreArchivo }}" target="_tab" {{ targetAttr }}>
+                            <img src="{{ app.request.basePath ~ imagePath ~ 'Excel.svg' }}" 
+                                 alt="{{ nombreArchivo }}"/>
+                        </a>
+                    {% elseif extension is not null and extension|lower == 'txt' %}
+                        <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips"
+                           title="{{ nombreArchivo }}" target="_tab" {{ targetAttr }}>
+                            <img src="{{ app.request.basePath ~ imagePath ~ 'Text.svg' }}" 
+                                 alt="{{ nombreArchivo }}"/>    
+                        </a>
+                    {% elseif extension is not null and extension|lower == 'rar' %}
+                        <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips"
+                           title="{{ nombreArchivo }}" target="_tab" {{ targetAttr }}>
+                            <img src="{{ app.request.basePath ~ imagePath ~ 'WinZip.svg' }}" 
+                                 alt="{{ nombreArchivo }}"/>
+                        </a>
+                    {% elseif extension is not null and extension|lower == 'zip' %}
+                        <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips" 
+                           title="{{ nombreArchivo }}" target="_tab" {{ targetAttr }}>
+                            <img src="{{ app.request.basePath ~ imagePath ~ 'WinZip.svg' }}" 
+                                 alt="{{ nombreArchivo }}"/>
+                        </a>
+                    {% else %}
+                        <span class="link-adjunto image-viewer">
+                            <a href="{{ filePath ~ archivo.nombreArchivo }}" class="tooltips" 
+                               title="{{ nombreArchivo }}" {{ targetAttr }}>
+                                <img src="{{ filePath ~ archivo.nombreArchivo }}" 
+                                     alt="{{ nombreArchivo }}"/>
+                            </a>
+                        </span>
+                    {% endif %}
+                {% endfor %}
+                {% if archivosPDF|length > 0 %}
+                    {% set optionPDF = random(1, 1000) %}
+                    <div class="row margin-10 row-pdf-show-custom">
+                        {#
+                        {% if archivosPDF|length > 2 %}
+                            <div class="col-md-12 text-left margin-bottom-5">
+                                Visualizaci&oacute;n de PDFs: 
+                                <div class="btn-group margin-left-5" data-toggle="buttons">
+                                    {% for pdfView in 2..min(4,archivosPDF|length) %}
+                                        <label data-width="{{ pdfView }}" class="btn {{pdfView == 3 ? 'active blue' : ''}} option-pdf option-pdf-{{optionPDF}}">
+                                            <input type="radio" class="toggle">
+                                            <span class="label-option-pdf label-option-pdf-{{optionPDF}}">{{pdfView == 3 ? 'Viendo' : 'Ver'}}</span> {{ pdfView }} por fila
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        #}
+                        {% for archivoPDF in archivosPDF %}
+                            {% set archivosPDFRandom = random(1, 1000) %}
+                            {% set archivosPDFWidth = archivosPDF|length <= 2 ? '6' : '4' %}
+                            <div class="col-md-{{archivosPDFWidth}} padding-left-5 padding-right-5 option-pdf-target option-pdf-target-{{optionPDF}}">
+                                <div class="margin-5 padding-8 box-pdf-file-show">
+                                    <div class="bold font-blue font-size-14" style="word-break: break-all;">{{ archivoPDF.nombre }}</div>
+                                    <div class="font-grey-mint font-size-12 margin-bottom-5 margin-top-2" style="word-break: break-all;">
+                                        <span class="bold">Descripci&oacute;n:</span> {{ archivoPDF.descripcion|default('-') }}
+                                    </div>
+                                    <div class="pdf-container-adjuntos" id="archivoPDF_{{archivosPDFRandom}}_{{loop.index}}" style="height: 300px;"></div>
+                                </div>
+                            </div>
+                            <script>PDFObject.embed("{{ asset(filePath ~ archivoPDF.nombreArchivo) }}", "#archivoPDF_{{archivosPDFRandom}}_{{loop.index}}");</script>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endif %}

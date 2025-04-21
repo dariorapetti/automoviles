@@ -1,0 +1,28 @@
+<li class="menu-item menu-item-submenu menu-item-rel" data-menu-toggle="click" aria-haspopup="true">
+    <a href="javascript:;" class="menu-link menu-toggle">
+        <span class="menu-text">Procesos</span>
+        <i class="menu-arrow"></i>
+    </a>
+    <div class="menu-submenu menu-submenu-classic menu-submenu-left" data-hor-direction="menu-submenu-left">
+        <ul class="menu-subnav">
+            {% if is_granted("ROLE_PROCESOS_PROCESO_VIEW") %}
+            <li class="menu-item" data-menu-toggle="click" aria-haspopup="true">
+                <a href="{{ path('proceso_index') }}" class="menu-link">
+                    <span class="menu-text">Listado de procesos</span>
+                </a>
+            </li>
+            {% endif %}
+            {% if is_granted("ROLE_PROCESOS_CONFIGURACION") %}
+            <li class="menu-item" data-menu-toggle="click" aria-haspopup="true">
+                <a href="{{ path('gerencia_index') }}" class="menu-link">
+                    <span class="menu-text">Gerencias</span>
+                </a>
+            </li>
+            <li class="menu-item" data-menu-toggle="click" aria-haspopup="true">
+                <a href="{{ path('subcategoria_index') }}" class="menu-link">
+                    <span class="menu-text">Subcategor&iacute;as</span>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+</li>

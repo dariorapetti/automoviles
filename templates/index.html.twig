@@ -1,0 +1,74 @@
+{% extends 'base.html.twig' %}
+
+{% import 'app/_macro_form.html.twig' as macro_form %}
+{% block title %}
+	HR Automotores
+{% endblock %}
+{% block body %}
+	<section class="jumbotron" style="background-image: url({{asset(image_path ~ 'trenes_infraestructura_obra.jpg')}});">
+		<div class="jumbotron_bar">
+			<div class="container">
+				<div class="row">
+					<div class="col-md-12">
+						<ol class="breadcrumb pull-left">
+							<li>
+								<a href="#">HR Automotores</a>
+							</li>
+							<li class="active">
+								<span>Inicio</span>
+							</li>
+						</ol>
+
+
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="jumbotron_body">
+			<div class="container">
+				<div class="row">
+					<div class="col-xs-12 col-md-8 col-md-offset-2 text-center">
+						<h2>
+							HR Automotores
+						</h2>
+						<p></p>
+						<p>
+							Inicio
+						</p>
+						<p></p>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="overlay"></div>
+	</section>
+	<section>
+		<div class="container">
+			<div class="panel-pane pane-atajos">
+				<div class="pane-content mt-6">
+
+					<div
+						class="row panels-row">
+						<div class="col-xs-12 col-sm-12 col-md-4">
+							<a href="#" class="panel panel-default panel-border-mandarina">
+								<div style="" class="panel-heading"></div>
+								<div class="panel-body">
+									<h3>
+										Portal de Licitaciones
+									</h3>
+									<div class="text-muted">
+										<p>
+											Licitaciones ADIFSE
+										</p>
+									</div>
+								</div>
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+
+		</div>
+</section>{% endblock %}{% block javascripts %}
+{{ parent() }}<script src="{{ asset( plugins_path ~ 'global/plugins.bundle.js' ) }}"></script>{% endblock %}{% block stylesheets %}
+{{ parent() }}{% endblock %}

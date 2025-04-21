@@ -1,0 +1,44 @@
+/* ENJOYHINT */
+.myNext, .myPrev, .mySkip, .enjoyhint_close_btn {
+    color: #0072bc !important;
+    background-color: #fff !important;
+    border-color: #0072bc !important;
+}
+.myNext i, .myPrev i, .mySkip i, .enjoyhint_close_btn i {
+    color: #555555 !important;
+}
+.myNext:hover, .myPrev:hover, .mySkip:hover, .enjoyhint_close_btn:hover {
+    background-color: #0072bc !important;
+    color: #fff !important;
+    border-color: #fff !important;
+}
+.myNext:hover i, .myPrev:hover i, .mySkip:hover i, .enjoyhint_close_btn:hover i {
+    color: #fff !important;
+}
+#enjoyhint_label * {
+    font-size: 35px !important;
+}
+
+.enjoyhint_close_btn::before, .enjoyhint_close_btn::after {
+    background-color: #555555 !important;
+}
+
+.enjoyhint_close_btn:hover::before, .enjoyhint_close_btn:hover::after {
+    background-color: #fff !important;
+}
+
+.enjoyhint_next_btn, .enjoyhint_prev_btn {
+    width: 35px !important;
+    height: 32px !important;
+    min-width: 35px !important;
+    font-size: 24px !important;
+    line-height: 28.8px !important;
+}
+
+.hidden-hint.showing {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    background: transparent;
+    z-index: 1;
+}

@@ -1,0 +1,71 @@
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
+parameters:
+    dsn: '%env(DSN)%'
+
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    App\:
+        resource: '../src/*'
+        exclude: '../src/{DependencyInjection,Entity,Tests,Kernel.php}'
+
+    # controllers are imported separately to make sure services can be injected
+    # as action arguments even if you don't extend any base controller class
+    App\Controller\:
+        resource: '../src/Controller'
+        tags: ['controller.service_arguments']
+
+    # add more service definitions when explicit configuration is needed
+    # please note that last definitions always *replace* previous ones
+
+    Symfony\Component\HttpFoundation\Session\Storage\Handler\PdoSessionHandler:
+        arguments:
+            - '%env(DATABASE_URL)%'
+            - { lock_mode: 1 }
+                    
+    App\Namer\ArchivoAdjuntoNamer:
+        public: true
+
+    App\EventListener\AuditoriaListener:
+        tags:
+            - { name: doctrine.event_listener, event: prePersist }
+            - { name: doctrine.event_listener, event: preUpdate }
+    
+    App\EventListener\Redirect404ToHomepageListener:
+        arguments:
+            - "@router"
+        tags:
+            - { name: kernel.event_listener, event: kernel.exception, method: onKernelException }
+
+    App\EventListener\SessionListener:
+        tags:
+            - {name: kernel.event_listener, event: kernel.request, method: onRequestListener}
+
+    App\EventListener\LogoutListener:
+        public: false
+        
+    App\Maker\MakeCrud:
+        arguments: ['@maker.doctrine_helper', '@maker.renderer.form_type_renderer', '%kernel.project_dir%', '@doctrine.orm.entity_manager']
+        calls:
+          - [configureCommand, ['@security.command.user_password_encoder', '@?']]
+          - [interact, ['@?', '@?', '@security.command.user_password_encoder']]
+        tags:
+          - { name: maker.command }
+
+    App\EventListener\CaptchaListener:
+        arguments: ['%env(recaptcha_web_key)%', '%env(recaptcha_secret_key)%']
+        tags:
+            - { name: kernel.event_listener, event: kernel.request, priority: 9 }
+        
+    App\EventListener\ExceptionListener:
+        tags:
+            - { name: kernel.event_listener, event: kernel.exception, method: onKernelException }

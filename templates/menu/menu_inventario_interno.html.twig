@@ -1,0 +1,70 @@
+<li class="menu-item menu-item-submenu menu-item-rel" data-menu-toggle="click" aria-haspopup="true">
+    <a href="javascript:;" class="menu-link menu-toggle">
+        <span class="menu-text">
+            Inventario GTIP
+
+
+        </span>
+        <i class="menu-arrow"></i>
+    </a>
+    <div class="menu-submenu menu-submenu-classic menu-submenu-left" data-hor-direction="menu-submenu-left">
+        <ul class="menu-subnav">
+            {% if is_granted("ROLE_INVENTARIO_INTERNO_GTIP") %}
+                <li class="menu-item menu-item-submenu" data-menu-toggle="hover" aria-haspopup="true">
+                    <a href="javascript:;" class="menu-link menu-toggle">
+                        <span class="menu-text">
+                            Configuraci&oacute;n      
+                        </span>
+                        <i class="menu-arrow"></i>
+                    </a>
+                    <div class="menu-submenu menu-submenu-classic menu-submenu-right" data-hor-direction="menu-submenu-right">
+                        <ul class="menu-subnav">
+                            <li class="menu-item" aria-haspopup="true">
+                                <a href="{{ path('marca_index') }}" class="menu-link">
+                                    <span class="menu-text">
+                                        Marcas                      
+                                    </span>
+                                </a>
+                            </li>
+                            <li class="menu-item" aria-haspopup="true">
+                                <a href="{{ path('modelo_index') }}" class="menu-link">
+                                    <span class="menu-text">
+                                        Modelos                      
+                                    </span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+                <li class="menu-item" aria-haspopup="true">
+                    <a href="{{ path('dispositivo_index') }}" class="menu-link">
+                        <span class="menu-text">
+                            Dispositivos         
+                        </span>
+                    </a>
+                </li>
+                <li class="menu-item" aria-haspopup="true">
+                    <a href="{{ path('asignacion_index') }}" class="menu-link">
+                        <span class="menu-text">
+                            Asignaciones
+                        </span>
+                    </a>
+                </li>
+                <li class="menu-item" aria-haspopup="true">
+                    <a href="{{ path('consumo_index') }}" class="menu-link">
+                        <span class="menu-text">
+                            Carga de Consumos
+                        </span>
+                    </a>
+                </li>
+                <li class="menu-item" aria-haspopup="true">
+                    <a href="{{ path('historico_index') }}" class="menu-link">
+                        <span class="menu-text">
+                            Hist&oacute;rico de asignaciones
+                        </span>
+                    </a>
+                </li>                
+            {% endif %}
+        </ul>
+    </div>
+</li>

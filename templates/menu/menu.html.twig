@@ -1,0 +1,4 @@
+{# MENU SEGURIDAD #}
+{% if is_granted("ROLE_USUARIO_VIEW") or is_granted("ROLE_GRUPO_VIEW") or is_granted("ROLE_AUDITORIA_VIEW") %}
+    {% include 'menu/menu_seguridad.html.twig' %} 
+{% endif %}

@@ -1,0 +1,5 @@
+framework:
+    mailer:
+        transports:
+            main: '%env(MAILER_DSN)%'
+            info_especificaciones_tecnicas: '%env(MAILER_DSN_INFO_ESPECIFICACIONES_TECNICAS)%'

@@ -1,0 +1,32 @@
+
+{% import 'app/_macro_form.html.twig' as macro_form %}
+
+<div class="row row-archivo-adjunto">
+    <div class="col-md-5 form_field">
+        <div class="form-group">            
+            {{ form_label(archivoAdjunto.archivo) }}
+            {% if edit is defined and edit and archivoAdjunto.vars.value is not null and archivoAdjunto.vars.value.archivo is not null %} 
+                <a class="download-link font-xs" target="_blank"
+                    href="{{ asset('uploads/archivo_adjunto/' ~ (customPath != '' ? customPath ~ '/' : '') ~ archivoAdjunto.vars.value.nombreArchivoClear) }}">
+                    (descargar)
+                </a>
+                <div class="form_field">
+                    {{ form_widget(archivoAdjunto.archivo, {'required' : false, 'attr' : { 'data-file' : archivoAdjunto.vars.value.nombre} }) }}
+                </div>
+            {% else %} 
+                <div class="form_field">
+                    {{ form_widget(archivoAdjunto.archivo) }}
+                </div>
+            {% endif %} 
+        </div>
+    </div>
+        
+    {{ macro_form._new_field(archivoAdjunto.descripcion, 'col-md-6') }}
+
+    <div class="col-md-1 no-padding">
+        <a href="#" class="btn btn-sm red mt-8 delete-link-inline 
+           remove-link-archivo-adjunto accion-borrar">
+            <i class="fa fa-trash"></i>
+        </a>                   
+    </div>
+</div>

@@ -1,0 +1,53 @@
+{% if entity.archivosAdjuntos is not empty %}
+
+    {% set imagePath = '/images/template/default/' %}
+    {% set filePath = app.request.basePath ~ '/uploads/archivo_adjunto/' ~ (customPath != '' ? customPath ~ '/' : '') %}
+    {% set targetAttr = targetBlank is defined ? 'target="_blank"' : ''%}
+
+    <div class="row">
+        <div class="col-md-12">
+
+            <span class="font-size-12 bold">Adjuntos</span>
+
+            {% for archivo in entity.archivosAdjuntos %}
+
+                <div class="row margin-top-10">
+                    <div class="col-md-12">
+                        <div class="pull-left padding-5" style="border: 1px solid #bfbfbf;">
+
+                            {% set extension = archivo.nombreArchivo|split('.')|last %}
+
+                            {% set nombreArchivo = archivo.nombre ~ (archivo.descripcion is not null ? (' - ' ~ archivo.descripcion) : '') %}
+
+                            {% set src = filePath ~ archivo.nombreArchivo %}
+
+                            {% if extension is not null and extension|lower == 'pdf' %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'PDF.svg' %}
+                            {% elseif extension is not null and (extension|lower == 'doc' or extension|lower == 'docx') %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'Word.svg' %}
+                            {% elseif extension is not null and (extension|lower == 'xls' or extension|lower == 'xlsx' or extension|lower == 'xlsm') %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'Excel.svg' %}
+                            {% elseif extension is not null and extension|lower == 'txt' %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'Text.svg' %}
+                            {% elseif extension is not null and extension|lower == 'rar' %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'WinZip.svg' %}
+                            {% elseif extension is not null and extension|lower == 'zip' %}
+                                {% set src = app.request.basePath ~ imagePath ~ 'WinZip.svg' %}
+                            {% endif %}
+
+                            <img src="{{ src }}" alt="{{ nombreArchivo }}" style="width: 60px;"/>
+                        </div>
+
+                        <div class="pull-left margin-left-10">
+                            <div class="margin-top-5 font-size-13">{{ archivo.nombre|default('-') }}</div>
+                            <div class="margin-top-5 font-size-12">{{ archivo.descripcion|default('-') }}</div>
+                            <div class="margin-top-5 font-size-11">
+                                <a href="{{ filePath ~ archivo.nombreArchivo }}" target="_tab" {{ targetAttr }}>Descargar</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}

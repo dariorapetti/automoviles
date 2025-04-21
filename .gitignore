@@ -1,0 +1,48 @@
+
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+
+public/uploads/archivo_adjunto/acceso_directo/*
+!public/uploads/archivo_adjunto/acceso_directo/.gitkeep
+
+public/uploads/archivo_adjunto/licitacion/*
+!public/uploads/archivo_adjunto/licitacion/.gitkeep
+
+public/uploads/archivo_adjunto/link_destacado/*
+!public/uploads/archivo_adjunto/link_destacado/.gitkeep
+
+public/uploads/archivo_adjunto/prorroga_licitacion/*
+!public/uploads/archivo_adjunto/prorroga_licitacion/.gitkeep
+
+public/uploads/archivo_adjunto/adjunto_inventario_gtip/*
+!public/uploads/archivo_adjunto/adjunto_inventario_gtip/.gitkeep
+
+
+###< symfony/framework-bundle ###
+
+###> symfony/phpunit-bridge ###
+.phpunit
+.phpunit.result.cache
+/phpunit.xml
+###< symfony/phpunit-bridge ###
+.vscode/launch.json
+
+
+
+public/uploads/reclutamiento/candidato/fotos/*
+!public/uploads/reclutamiento/candidato/fotos/.gitkeep
+
+public/uploads/reclutamiento/candidato/curriculum/*
+!public/uploads/reclutamiento/candidato/curriculum/.gitkeep
+
+public/uploads/archivo_adjunto/adjunto_documento_tecnico/*
+!public/uploads/archivo_adjunto/adjunto_documento_tecnico/.gitkeep
+
+public/uploads/archivo_adjunto/procesos/*
+!public/uploads/archivo_adjunto/procesos/.gitkeep
