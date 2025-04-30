@@ -1,0 +1,34 @@
+{% extends 'base.html.twig' %}
+
+{% import 'app/_macro_show.html.twig' as macro_show %}
+
+{% block body %}
+  <div class="card card-custom">
+		<div class="card-header">
+			<div class="card-title">
+				<span class="card-icon"><i class="flaticon-search text-primary"></i></span>
+				<h3 class="card-label">Detalles del proveedor {{ entity }}</h3>
+			</div>
+      <div class="card-toolbar">
+				<!--begin::Button-->
+				<a href="{{ path('proveedor_edit', {'id': entity.id}) }}" class="btn btn-primary font-weight-bolder">
+					<i class="la la-pen"></i>
+					Editar
+				</a>
+				<!--end::Button-->
+			</div>
+    </div>
+    <div class="card-body">
+      <!--begin::Item-->
+      <div class="row">
+        {{ macro_show._show_detail('Raz&oacute;n Social', entity.razonSocial, 'col-md-4') }}
+        {{ macro_show._show_detail('Direcci&oacute;n', entity.direccion, 'col-md-4') }}
+        {{ macro_show._show_detail('Tel&eacute;fono Operador', entity.telefonoOperador, 'col-md-4') }}
+      </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between">
+      <a href="{{ path('proveedor_index') }}" class="btn btn-light-dark font-weight-bold">Volver al listado</a>
+    </div>        
+	</div>
+{% endblock %}
+

@@ -1,0 +1,21 @@
+{
+  "data": [
+    {% for entity in entities %}
+    [
+    "{{ entity.id }}",
+    "{{ entity.nombre|default('-') }}",
+    "{{ entity.direccion|default('-') }}",
+    "{{ entity.telefono|default('-') }}",
+    "{{ entity.email|default('-') }}",
+    {
+      "show" : " {{ path( "cliente_show", { "id": entity.id }) }}"
+      ,"edit" : " {{ path( "cliente_edit", { "id": entity.id }) }}"
+      ,"delete" : " {{ path( "cliente_delete", { "id": entity.id }) }}"
+    }
+    ]{{ (loop.last ? '' : ',') }}
+    {% endfor %}
+  ],
+  "draw": {{ draw }},
+  "recordsTotal": {{ totalRows }},
+  "recordsFiltered": {{ totalFiltered }}
+}

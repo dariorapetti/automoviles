@@ -1,4 +1,7 @@
-{# MENU SEGURIDAD #}
-{% if is_granted("ROLE_USUARIO_VIEW") or is_granted("ROLE_GRUPO_VIEW") or is_granted("ROLE_AUDITORIA_VIEW") %}
-    {% include 'menu/menu_seguridad.html.twig' %} 
-{% endif %}
+{# {% if is_granted("ROLE_USUARIO_VIEW") or is_granted("ROLE_GRUPO_VIEW") or is_granted("ROLE_AUDITORIA_VIEW") %} #}
+  {% include 'menu/menu_vehiculos.html.twig' %} 
+  {% include 'menu/menu_proveedores.html.twig' %} 
+  {% include 'menu/menu_clientes.html.twig' %}
+  {% include 'menu/menu_marcas.html.twig' %}
+  {% include 'menu/menu_seguridad.html.twig' %} 
+{# {% endif %} #}

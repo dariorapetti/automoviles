@@ -1,0 +1,43 @@
+{% import 'app/_macro_form.html.twig' as macro_form %}
+
+<div class="row">
+  {{ macro_form._new_field(form.marca, 'col-md-3') }}
+  {{ macro_form._new_field(form.modelo, 'col-md-3') }}
+  {{ macro_form._new_field(form.tipo, 'col-md-3') }}
+  {{ macro_form._new_field(form.dominio, 'col-md-3') }}
+</div>
+<div class="row">
+  {{ macro_form._new_field(form.numeroMotor, 'col-md-4') }}
+  {{ macro_form._new_field(form.numeroChasis, 'col-md-4') }}
+</div>
+<div class="row">
+  {{ macro_form._new_field(form.cotizacionDolar, 'col-md-2') }}
+</div>
+<div class="row" style="padding-bottom: 20px;">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-light" style="padding:10px 0 10px 20px;">
+        Precio Compra
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {{ macro_form._new_field(form.precioCompraPesos, 'col-md-6') }}
+          {{ macro_form._new_field(form.precioCompraUsd, 'col-md-6') }}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-light" style="padding:10px 0 10px 20px;">
+        Precio Venta
+      </div>
+      <div class="card-body">
+        <div class="row">
+          {{ macro_form._new_field(form.precioVentaPesos, 'col-md-6') }}
+          {{ macro_form._new_field(form.precioVentaUsd, 'col-md-6') }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

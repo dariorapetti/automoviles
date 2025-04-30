@@ -1,0 +1,27 @@
+{
+  "data": [
+  {% for entity in entities %}
+    [
+      "{{ entity.id }}",
+      "{{ entity.tipo_vehiculo }}",
+      "{{ entity.cliente_proveedor }}",
+      "{{ entity.marca }}",
+      "{{ entity.modelo }}",
+      "{{ entity.dominio }}",
+      "{{ entity.cotizacion_dolar|default('-') }}",
+      "{{ entity.precio_compra_usd|default('-') }}",
+      "{{ entity.precio_venta_usd|default('-') }}",
+      "{{ entity.precio_compra_pesos|default('-') }}",
+      "{{ entity.precio_venta_pesos|default('-') }}",
+      {
+        "show" : " {{ path( "vehiculo_show", { "id": entity.id }) }}"
+        ,"edit" : " {{ path( "vehiculo_edit", { "id": entity.id }) }}"
+        ,"delete" : " {{ path( "vehiculo_delete", { "id": entity.id }) }}"
+      }
+    ]{{ (loop.last ? '' : ',') }}
+{% endfor %}
+  ],
+  "draw": {{ draw }},
+  "recordsTotal": {{ totalRows }},
+  "recordsFiltered": {{ totalFiltered }}
+}

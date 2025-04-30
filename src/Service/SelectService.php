@@ -76,25 +76,9 @@ class SelectService {
      * @param type $useId
      * @return string
      */
-    public function getMesesSelect($useId = false) {
-        $months = API::getMonthArray();
-
-        $responseData = "Todos:Todos;";
-
-        $count = count($months);
-
-        foreach ($months as $mes) {
-            $id = $mes['id'];
-            $text = $mes['denominacion'];
-
-            $responseData .= ($useId ? $id : $text) . ':' . $text;
-
-            if (--$count > 0) {
-                $responseData .= ';';
-            }
-        }
-
-        return $responseData;
+    public function getTipoVehiculoSelect()
+    {
+      return "Todos:Todos;Cero:Cero;Usado:Usado";
     }
 
     /**
@@ -115,98 +99,6 @@ class SelectService {
     private function getEm()
     {
         return $this->em;
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getEspecificacionesTecnicasCategoriaDocumentoTecnicoSelect($useId = false) {
-
-        $em = $this->getEm();
-
-        $sql = "SELECT x.id, x.denominacion AS nombre
-                FROM App\Entity\EspecificacionesTecnicas\CategoriaDocumentoTecnico x 
-                WHERE x.fechaBaja IS NULL 
-                ORDER BY x.denominacion ASC";
-
-        $query = $em->createQuery($sql);
-
-        $entities = $query->getArrayResult();
-
-        return $this->getResponseData($entities, $useId, false, true);
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getEspecificacionesTecnicasEstadoDocumentoTecnicoSelect($useId = false) {
-
-        $em = $this->getEm();
-
-        $sql = "SELECT x.id, x.denominacion AS nombre
-                FROM App\Entity\EspecificacionesTecnicas\EstadoDocumentoTecnico x 
-                ORDER BY x.denominacion ASC";
-
-        $query = $em->createQuery($sql);
-
-        $entities = $query->getArrayResult();
-
-        return $this->getResponseData($entities, $useId, false, true);
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getEspecificacionesTecnicasAccionHistoricoSelect() {
-
-        $responseData = "Todos:Todos;";
-
-        $responseData .= ConstanteAccionHistoricoEspecificacionesTecnicas::DESCARGA . ':' . ConstanteAccionHistoricoEspecificacionesTecnicas::DESCARGA . ';';
-        $responseData .= ConstanteAccionHistoricoEspecificacionesTecnicas::LOGIN . ':' . ConstanteAccionHistoricoEspecificacionesTecnicas::LOGIN . ';';
-        $responseData .= ConstanteAccionHistoricoEspecificacionesTecnicas::LOGOUT . ':' . ConstanteAccionHistoricoEspecificacionesTecnicas::LOGOUT;
-
-        return $responseData;
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getProcesosCategoriaSelect($useId = false) {
-
-        $em = $this->getEm();
-
-        $sql = "SELECT x.id, x.nombre
-                FROM App\Entity\Procesos\Categoria x 
-                ORDER BY x.nombre ASC";
-
-        $query = $em->createQuery($sql);
-
-        $entities = $query->getArrayResult();
-
-        return $this->getResponseData($entities, $useId, false, true);
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getProcesosGerenciaSelect($useId = false) {
-
-        $em = $this->getEm();
-
-        $sql = "SELECT x.id, x.nombre
-                FROM App\Entity\Procesos\Gerencia x 
-                ORDER BY x.nombre ASC";
-
-        $query = $em->createQuery($sql);
-
-        $entities = $query->getArrayResult();
-
-        return $this->getResponseData($entities, $useId, false, true);
     }
 
 }

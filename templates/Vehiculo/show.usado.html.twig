@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% import 'app/_macro_show.html.twig' as macro_show %}
+
+{% block body %}
+
+	<div class="card card-custom">
+		<div class="card-header">
+			<div class="card-title">
+				<span class="card-icon">
+					<i class="flaticon-search text-primary"></i>
+				</span>
+				<h3 class="card-label">Detalles del veh&iacute;culo usado
+					{{ entity }}</h3>
+			</div>
+			<div
+				class="card-toolbar">
+				<!--begin::Button-->
+				<a href="{{ path('vehiculousado_edit', {'id': entity.id}) }}" class="btn btn-primary font-weight-bolder">
+					<i class="la la-pen"></i>
+					Editar
+				</a>
+				<!--end::Button-->
+			</div>
+		</div>
+
+		<div
+			class="card-body">
+			<!--begin::Item-->
+			<div class="row">
+				{{ macro_show._show_detail('Cliente', entity.cliente, 'col-md-4') }}
+			</div>
+			<div class="row">
+        {{ macro_show._show_detail('Año', entity.anio, 'col-md-4') }}
+				{{ macro_show._show_detail('Kilómetros', entity.kilometros, 'col-md-4') }}
+				{{ macro_show._show_detail('Precio Revista', entity.precioRevista, 'col-md-4') }}
+			</div>
+      {% include ('app/vehiculo/show.html.twig') %}
+			<fieldset class="form-group row">
+        <label class="col-form-label col-lg-2 col-sm-12">Datos del vah&iacute;culo</label>
+        <div class="col-lg-10 col-md-9 col-sm-12">
+          <div class="row">
+            {{ macro_show._show_detail('Kit Seguridad', entity.kitSeguridad, 'col-md-3') }}
+				    {{ macro_show._show_detail('Cubre Alfombras', entity.cubreAlfombras, 'col-md-3') }}
+				    {{ macro_show._show_detail('Título', entity.titulo, 'col-md-3') }}
+				    {{ macro_show._show_detail('Cédula Verde', entity.cedulaVerde, 'col-md-3') }}
+			    </div>
+			    <div class="row">
+            {{ macro_show._show_detail('Formulario08', entity.formulario08, 'col-md-2') }}
+            {{ macro_show._show_detail('GrabadoAutopartes', entity.grabadoAutopartes, 'col-md-2') }}
+            {{ macro_show._show_detail('DuplicadoLlaves', entity.duplicadoLlaves, 'col-md-2') }}
+          </div>
+          <div class="row">
+            {{ macro_show._show_detail('VencimientoGnc', entity.vencimientoGnc, 'col-md-3') }}
+            {{ macro_show._show_detail('VencimientoVtv', entity.vencimientoVtv, 'col-md-3') }}
+            {{ macro_show._show_detail('InformeDominio', entity.informeDominio, 'col-md-3') }}
+            {{ macro_show._show_detail('Patentes', entity.patentes, 'col-md-3') }}
+          </div>
+        </div>
+      </fieldset>
+      <div class="row">
+        {{ macro_show._show_detail('Comentario', entity.comentario, 'col-md-12') }}
+      </div>
+		</div>
+		<div class="card-footer d-flex justify-content-between">
+			<a href="{{ path('vehiculousado_index') }}" class="btn btn-light-dark font-weight-bold">Volver al listado</a>
+		</div>
+
+	</div>
+
+{% endblock %}

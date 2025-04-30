@@ -34,1526 +34,1468 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 
-class BaseController extends AbstractController {
+class BaseController extends AbstractController
+{
+  /**
+   *
+   * @var Array 
+   */
+  protected $baseBreadcrumbs;
 
-    /**
-     *
-     * @var Array 
-     */
-    protected $baseBreadcrumbs;
+  /**
+   *
+   * @var EntityManagementGuesser 
+   */
+  protected $guesser;
 
-    /**
-     *
-     * @var EntityManagementGuesser 
-     */
-    protected $guesser;
+  /**
+   *
+   * @var SelectService 
+   */
+  protected $selectService;
 
-    /**
-     *
-     * @var SelectService 
-     */
-    protected $selectService;
+  /**
+   *
+   * @var ParameterBagInterface 
+   */
+  protected $parameterBag;
 
-    /**
-     *
-     * @var ParameterBagInterface 
-     */
-    protected $parameterBag;
+  /**
+   *
+   * @var AuthorizationCheckerInterface 
+   */
+  protected $authChecker;
 
-    /**
-     *
-     * @var AuthorizationCheckerInterface 
-     */
-    protected $authChecker;
+  /**
+   *
+   * @var type 
+   */
+  private $associationTypeArray = array(ClassMetadataInfo::ONE_TO_MANY, ClassMetadataInfo::MANY_TO_MANY);
 
-    /**
-     *
-     * @var type 
-     */
-    private $associationTypeArray = array(ClassMetadataInfo::ONE_TO_MANY, ClassMetadataInfo::MANY_TO_MANY);
+  public function __construct(EntityManagementGuesser $emg, ContainerInterface $container, SelectService $selectService, ParameterBagInterface $parameterBag, AuthorizationCheckerInterface $authChecker)
+  {
+    $this->container = $container;
 
-    public function __construct(EntityManagementGuesser $emg, ContainerInterface $container, SelectService $selectService, ParameterBagInterface $parameterBag, AuthorizationCheckerInterface $authChecker)
-    {
-        $this->container = $container;
+    $this->guesser = $emg;
+    $this->guesser->initialize($this);
 
-        $this->guesser = $emg;
-        $this->guesser->initialize($this);
+    $this->selectService = $selectService;
 
-        $this->selectService = $selectService;
+    $this->parameterBag = $parameterBag;
 
-        $this->parameterBag = $parameterBag;
+    $this->authChecker = $authChecker;
 
-        $this->authChecker = $authChecker;
+    $this->baseBreadcrumbs = $this->getBaseBreadcrumbs();
 
-        $this->baseBreadcrumbs = $this->getBaseBreadcrumbs();
+    return $this;
+  }   
 
-        return $this;
-    }   
+  /**
+   * 
+   * @param type $extraParam
+   * @return Array
+   */
+  public function baseIndexAction($extraParam = array()): Array {
+    $breadcrumbs = $this->getIndexBaseBreadcrumbs();
 
-    /**
-     * 
-     * @param type $extraParam
-     * @return type
-     */
-    public function baseIndexAction($extraParam = array()): Array {
+    $defaultParam = array(
+      'breadcrumbs' => $breadcrumbs,
+      'page_title' => $this->getEntityPluralName()
+    );
 
-        $breadcrumbs = $this->getIndexBaseBreadcrumbs();
+    return array_merge($defaultParam, $extraParam);
+  }
 
-        $defaultParam = array(
-            'breadcrumbs' => $breadcrumbs,
-            'page_title' => $this->getEntityPluralName()
-        );
+  /**
+   * 
+   * @param Request $request
+   * @param type $columnDefinition
+   * @param type $entityTableParam
+   * @param type $queryTypeParam
+   * @param type $rsmParam
+   * @param type $renderPageParam
+   * @param type $extraParam
+   * @param type $storedParameters
+   * @param type $executeAditionalWhere
+   * @return Response
+   */
+  public function baseIndexTableAction(Request $request, $columnDefinition = [], $entityTableParam = null, $queryTypeParam = null, $rsmParam = null, $renderPageParam = null, $extraParam = array(), $storedParameters = array(), $executeAditionalWhere = false): Response 
+  {
+    /* @var $em EntityManager */
+    $em = $this->getDoctrine()->getManager();
 
-        return array_merge($defaultParam, $extraParam);
+    $queryType = $queryTypeParam == null ? ConstanteTipoConsulta::TABLE : $queryTypeParam;
+
+    $entityFullName = $this->getEntityFullName();        
+
+    $entityTable = $entityTableParam != null //
+            ? $entityTableParam //
+            : ($queryType == ConstanteTipoConsulta::VIEW || $queryType == ConstanteTipoConsulta::STORE_PROCEDURE //
+            ? $this->getViewName() //
+            : "App:$entityFullName"
+            );
+
+    $rsm = $rsmParam != null ? $rsmParam : $this->getRSMResult();
+    $storedWithCount = true;
+
+    //REQUEST
+    $page = $request->query->get('start');
+    $rows = $request->query->get('length');
+    $draw = $request->query->get('draw');
+    $start = $page;
+
+    /* GET ORDER BY PARAMS */
+    $orderByArray = $this->getOrderArrayParams($request, $columnDefinition);
+    /* FIN GET ORDER BY PARAMS */
+
+    // Si el origen de datos es una Tabla o una Vista
+    if ($queryType == ConstanteTipoConsulta::TABLE || $queryType == ConstanteTipoConsulta::VIEW) {
+      $aliasTable = "t";
+      $allFieldsTable = $queryType == ConstanteTipoConsulta::VIEW ? $aliasTable . ".*" : $aliasTable;
+
+
+      /* INIT SQL */
+      $sql = "SELECT $allFieldsTable FROM $entityTable AS $aliasTable ";
+
+      /* SET WHERE */
+      $generatedWhere = $this->getWhereSQL($aliasTable, $request, $queryType == ConstanteTipoConsulta::TABLE, $columnDefinition);
+      $where = $generatedWhere['where'];
+      if ($executeAditionalWhere) {
+        $whereAditional = $this->getAditionalCustomWhereSQL($aliasTable, $request);
+        if ($whereAditional !== '') {
+          if ($where === '') {
+            $where = ' WHERE ' . $whereAditional;
+          } else {
+            $where .= ' AND ' . $whereAditional;
+          }
+        }
+      }
+      $sql .= $where;
+      /* FIN SET WHERE */
+
+      /* SET ORDER BY */
+      $sql .= $this->getOrderBySQL($aliasTable, $orderByArray);
+      /* FIN SET ORDER BY */
     }
 
-    /**
-     * 
-     * @param Request $request
-     * @param type $columnDefinition
-     * @param type $entityTableParam
-     * @param type $queryTypeParam
-     * @param type $rsmParam
-     * @param type $renderPageParam
-     * @param type $extraParam
-     * @param type $storedParameters
-     * @param type $executeAditionalWhere
-     * @return type
-     */
-    public function baseIndexTableAction(Request $request, $columnDefinition = [], $entityTableParam = null, $queryTypeParam = null, $rsmParam = null, $renderPageParam = null, $extraParam = array(), $storedParameters = array(), $executeAditionalWhere = false): Response 
-    {
+    /* CREATE QUERY AND SET LIMIT AND OFFSET */
+    if ($queryType == ConstanteTipoConsulta::VIEW) {
+      $query = $em->createNativeQuery($sql, $rsm);
 
-        /* @var $em EntityManager */
-        $em = $this->getDoctrine()->getManager();
+      $query->setSQL($query->getSQL() . ' LIMIT ' . $start . ', ' . $rows);
 
-        $queryType = $queryTypeParam == null ? ConstanteTipoConsulta::TABLE : $queryTypeParam;
+      foreach ($generatedWhere['queryParameters'] as $queryParameter) {
+        $query->setParameter($queryParameter['index'], $queryParameter['parameter']);
+      }
 
-        $entityFullName = $this->getEntityFullName();        
+      foreach ($extraParam as $param) {
+        $query->setParameter($param['key'], $param['value'], $param['type']);
+      }
+    } // 
+    elseif ($queryType == ConstanteTipoConsulta::TABLE) {
+      $query = $em->createQuery($sql);
 
-        $entityTable = $entityTableParam != null //
-                ? $entityTableParam //
-                : ($queryType == ConstanteTipoConsulta::VIEW || $queryType == ConstanteTipoConsulta::STORE_PROCEDURE //
-                ? $this->getViewName() //
-                : "App:$entityFullName"
-                );
+      foreach ($generatedWhere['queryParameters'] as $queryParameter) {
+        $query->setParameter($queryParameter['index'], $queryParameter['parameter']);
+      }
 
-        $rsm = $rsmParam != null ? $rsmParam : $this->getRSMResult();
-        $storedWithCount = true;
+      $query->setFirstResult($start);
+      $query->setMaxResults($rows);
+      $query->useResultCache(false);
+    } //
+    elseif ($queryType == ConstanteTipoConsulta::STORE_PROCEDURE) {
+      if (count($extraParam) > 0) {
+        $storedWithCount = false;
 
-        //REQUEST
-        $page = $request->query->get('start');
-        $rows = $request->query->get('length');
-        $draw = $request->query->get('draw');
-        $start = $page;
+        $sql = "call $entityTable";
 
-        /* GET ORDER BY PARAMS */
-        $orderByArray = $this->getOrderArrayParams($request, $columnDefinition);
-        /* FIN GET ORDER BY PARAMS */
+        for ($index = 0; $index < count($extraParam); $index++) {
+          // Si es el primer parametro
+          if ($index == 0) {
+            $sql .= '(';
+          }
 
-        // Si el origen de datos es una Tabla o una Vista
-        if ($queryType == ConstanteTipoConsulta::TABLE || $queryType == ConstanteTipoConsulta::VIEW) {
+          $sql .= '?';
 
-            $aliasTable = "t";
-            $allFieldsTable = $queryType == ConstanteTipoConsulta::VIEW ? $aliasTable . ".*" : $aliasTable;
-
-
-            /* INIT SQL */
-            $sql = "SELECT $allFieldsTable FROM $entityTable AS $aliasTable ";
-
-            /* SET WHERE */
-            $generatedWhere = $this->getWhereSQL($aliasTable, $request, $queryType == ConstanteTipoConsulta::TABLE, $columnDefinition);
-            $where = $generatedWhere['where'];
-            if ($executeAditionalWhere) {
-                $whereAditional = $this->getAditionalCustomWhereSQL($aliasTable, $request);
-                if ($whereAditional !== '') {
-                    if ($where === '') {
-                        $where = ' WHERE ' . $whereAditional;
-                    } else {
-                        $where .= ' AND ' . $whereAditional;
-                    }
-                }
-            }
-            $sql .= $where;
-            /* FIN SET WHERE */
-
-
-            /* SET ORDER BY */
-            $sql .= $this->getOrderBySQL($aliasTable, $orderByArray);
-            /* FIN SET ORDER BY */
+          // Si NO es el ultimo parametro
+          if ($index != count($extraParam) - 1) {
+            $sql .= ', ';
+          } else {
+            $sql .= ')';
+          }
         }
 
-        /* CREATE QUERY AND SET LIMIT AND OFFSET */
-        if ($queryType == ConstanteTipoConsulta::VIEW) {
+        $query = $em->createNativeQuery($sql, $rsm);
 
-            $query = $em->createNativeQuery($sql, $rsm);
+        foreach ($extraParam as $param) {
+          $query->setParameter($param['key'], $param['value'], $param['type']);
+        }
+      } else {
+        /* SET STORED PARAMETERS */
+        $storedParameters = $this->getRequestStoredParameters($storedParameters, $request);
+        /* FIN SET STORED PARAMETERS */
 
-            $query->setSQL($query->getSQL() . ' LIMIT ' . $start . ', ' . $rows);
+        /* INIT STORED CALL */
+        $sql = 'CALL ' . $entityTable . '(';
+        for ($index = 0; $index < count($storedParameters); $index++) {
+          $sql .= '?';
 
-            foreach ($generatedWhere['queryParameters'] as $queryParameter) {
-                $query->setParameter($queryParameter['index'], $queryParameter['parameter']);
-            }
+          // Si NO es el ultimo parametro
+          if ($index != count($storedParameters) - 1) {
+            $sql .= ', ';
+          }
+        }
+        $sql .= ',?,?,?,?,?)';
+        /* FIN INIT STORED CALL */
 
-            foreach ($extraParam as $param) {
-                $query->setParameter($param['key'], $param['value'], $param['type']);
-            }
+        /* SET ORDER */
+        if (empty($orderByArray)) {
+          $orderBy = 'id';
+          $orderDirection = 'ASC';
+        } else {
+          foreach ($orderByArray as $key => $value) {
+            $orderBy = $key;
+            $orderDirection = $value;
+          }
+        }
+        /* FIN SET ORDER */
+
+        $query = $em->createNativeQuery($sql, $rsm);
+
+        /* SET STORED PARAMETERS */
+        $i = 1;
+
+        foreach ($storedParameters as $parameter) {
+          $query->setParameter($i++, $parameter);
+        }
+        $query->setParameter($i++, $this->getUser()->getId());
+        $query->setParameter($i++, $orderBy);
+        $query->setParameter($i++, $orderDirection);
+        $query->setParameter($i++, $start);
+        $query->setParameter($i++, $rows);
+        /* FIN SET STORED PARAMETERS */
+      }
+    }
+    /* FIN SET LIMIT AND OFFSET */
+
+    // GET ENTITIES
+    $entities = $query->getResult();
+
+    /* SET COUNT */
+    $totalPages = NULL;
+    $countTotalEntities = NULL;
+    $countTotalEntitiesUnfiltered = NULL;
+    if ($storedWithCount) {
+      if ($queryType == ConstanteTipoConsulta::TABLE) {
+        $countUnfilteredSql = "SELECT COUNT($aliasTable.id) AS cant FROM $entityTable AS $aliasTable ";
+        $countUnfilteredQuery = $em
+          ->createQuery($countUnfilteredSql)
+          ->useResultCache(false);
+
+        $countSql = $countUnfilteredSql . $where;
+
+        $countQuery = $em
+          ->createQuery($countSql)
+          ->useResultCache(false);
+
+        foreach ($generatedWhere['queryParameters'] as $queryParameter) {
+          $countQuery->setParameter($queryParameter['index'], $queryParameter['parameter']);
+        }
+      } else {
+        $countUnfilteredSql = "SELECT COUNT($aliasTable.id) AS cant FROM $entityTable AS $aliasTable ";
+
+        $countSql = $countUnfilteredSql . $where;
+
+        $rsm = new ResultSetMapping();
+        $rsm->addScalarResult('cant', 'cant');
+
+        $countQuery = $em->createNativeQuery($countSql, $rsm);
+
+        foreach ($generatedWhere['queryParameters'] as $queryParameter) {
+          $countQuery->setParameter($queryParameter['index'], $queryParameter['parameter']);
+        }
+
+        $rsmUnfiltered = new ResultSetMapping();
+        $rsmUnfiltered->addScalarResult('cant', 'cant');
+
+        $countUnfilteredQuery = $em->createNativeQuery($countUnfilteredSql, $rsmUnfiltered);
+      }
+
+      //TOTAL FILTERED
+      $countResult = $countQuery->getOneOrNullResult();
+
+      $countTotalEntities = $countResult != null ? $countResult['cant'] : 0;
+
+      $totalPages = $rows != 0 ? ceil($countTotalEntities / $rows) : 1;
+
+      //TOTAL UNFILTERED
+      $countUnfilteredResult = $countUnfilteredQuery->getOneOrNullResult();
+
+      $countTotalEntitiesUnfiltered = $countUnfilteredResult != null ? $countUnfilteredResult['cant'] : 0;
+
+      /* FIN SET COUNT */
+    }
+
+    $localParameters = array(
+      "entities" => $entities,
+      "currentPage" => $page,
+      "totalPages" => $totalPages,
+      "totalRows" => $countTotalEntitiesUnfiltered,
+      "totalFiltered" => $countTotalEntities,
+      "draw" => $draw
+    );
+
+    $entityNameLower = strtolower(str_replace("\\", "/", $entityFullName));
+
+    $renderPage = $renderPageParam != null ? $renderPageParam : "$entityNameLower/index_table.html.twig";
+
+    return $this->render($renderPage, $localParameters);
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getIndexPath() {
+    $routeName = $this->getRequest()->get('_route');
+
+    $explode = explode('_', $routeName);
+
+    if (count($explode) > 0) {
+      $indexPath = array_shift($explode) . '_index';
+    } else {
+      $indexPath = '/';
+    }
+
+    return $indexPath;
+  }
+
+  /**
+   * 
+   * @return ResultSetMapping
+   */
+  protected function getRSMResult() {
+    return new ResultSetMapping();
+  }
+
+  /**
+   * 
+   * @param type $request
+   * @return type
+   */
+  protected function getBaseEntityName() {
+    return $this->guesser->guessEntityName();
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getEntityName() {
+    return $this->guesser->guessEntityShortName();
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getEntityFullName() {
+    $namespace = substr($this->guesser->getNamespace(), strpos($this->guesser->getNamespace(), "Controller") + 11);
+    return $namespace ? $namespace."\\".$this->guesser->guessEntityShortName() : $this->guesser->guessEntityShortName();
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getEntityRenderName() {
+    return strtolower($this->guesser->guessEntityShortName());
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getEntityPluralName() {
+    return $this->guesser->guessEntityShortName() . 's';
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getFormTypeName():string {
+    return $this->guesser->guessFormTypeName();
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getEntityShowName($entity) {
+    return $entity->__toString();
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  protected function getURLPrefix() {
+    return strtolower($this->guesser->guessEntityShortName());
+  }
+
+  /**
+   * 
+   * @param type $rule
+   * @param type $ruleIndex
+   * @param type $isTable
+   * @return string
+   */
+  private function getFieldOperation($rule, $ruleIndex, $isTable) {
+    $fieldOperation = "";
+
+    if ($rule['value'] != "Todos") {
+      switch ($rule['type']) {
+        case ConstanteTipoFiltro::SELECT:
+          $fieldOperation = " = ?" . ($isTable ? $ruleIndex : '') . ' ';
+          break;
+        case ConstanteTipoFiltro::STRING:
+          $fieldOperation = " LIKE ?" . ($isTable ? $ruleIndex : '');
+          break;
+        default:
+          $fieldOperation = "";
+          break;
+      }
+    }
+
+    return $fieldOperation;
+  }
+
+  /**
+   * 
+   * @param type $rule
+   * @return type
+   */
+  private function getFieldParameter($rule)
+  {
+    $parameter = null;
+
+    if ($rule['value'] != "Todos") {
+      $fieldData = $rule['value'];
+      $typeFilter = $rule['type'];
+
+      if (!empty($fieldData)) {
+        if ($typeFilter == ConstanteTipoFiltro::DATE) {
+          $fieldData = DateTime::createFromFormat('d/m/Y H:i:s', $fieldData . ' 00:00:00')->format("Y-m-d");
         } // 
-        elseif ($queryType == ConstanteTipoConsulta::TABLE) {
-            $query = $em->createQuery($sql);
-
-            foreach ($generatedWhere['queryParameters'] as $queryParameter) {
-                $query->setParameter($queryParameter['index'], $queryParameter['parameter']);
-            }
-
-            $query->setFirstResult($start);
-            $query->setMaxResults($rows);
-            $query->useResultCache(false);
-        } //
-        elseif ($queryType == ConstanteTipoConsulta::STORE_PROCEDURE) {
-
-            if (count($extraParam) > 0) {
-
-                $storedWithCount = false;
-
-                $sql = "call $entityTable";
-
-                for ($index = 0; $index < count($extraParam); $index++) {
-
-                    // Si es el primer parametro
-                    if ($index == 0) {
-                        $sql .= '(';
-                    }
-
-                    $sql .= '?';
-
-                    // Si NO es el ultimo parametro
-                    if ($index != count($extraParam) - 1) {
-                        $sql .= ', ';
-                    } // Sino 
-                    else {
-                        $sql .= ')';
-                    }
-                }
-
-                $query = $em->createNativeQuery($sql, $rsm);
-
-                foreach ($extraParam as $param) {
-                    $query->setParameter($param['key'], $param['value'], $param['type']);
-                }
-            } else {
-
-                /* SET STORED PARAMETERS */
-                $storedParameters = $this->getRequestStoredParameters($storedParameters, $request);
-                /* FIN SET STORED PARAMETERS */
-
-                /* INIT STORED CALL */
-                $sql = 'CALL ' . $entityTable . '(';
-                for ($index = 0; $index < count($storedParameters); $index++) {
-
-                    $sql .= '?';
-
-                    // Si NO es el ultimo parametro
-                    if ($index != count($storedParameters) - 1) {
-                        $sql .= ', ';
-                    }
-                }
-                $sql .= ',?,?,?,?,?)';
-                /* FIN INIT STORED CALL */
-
-                /* SET ORDER */
-                if (empty($orderByArray)) {
-                    $orderBy = 'id';
-                    $orderDirection = 'ASC';
-                } else {
-                    foreach ($orderByArray as $key => $value) {
-                        $orderBy = $key;
-                        $orderDirection = $value;
-                    }
-                }
-                /* FIN SET ORDER */
-
-                $query = $em->createNativeQuery($sql, $rsm);
-
-                /* SET STORED PARAMETERS */
-                $i = 1;
-
-                foreach ($storedParameters as $parameter) {
-                    $query->setParameter($i++, $parameter);
-                }
-                $query->setParameter($i++, $this->getUser()->getId());
-                $query->setParameter($i++, $orderBy);
-                $query->setParameter($i++, $orderDirection);
-                $query->setParameter($i++, $start);
-                $query->setParameter($i++, $rows);
-                /* FIN SET STORED PARAMETERS */
-            }
+        elseif ($typeFilter == ConstanteTipoFiltro::DATETIME) {
+          $fieldData = DateTime::createFromFormat('d/m/Y H:i', substr($fieldData, 0, 16))->format("Y-m-d H:i");
         }
-        /* FIN SET LIMIT AND OFFSET */
+      }
 
-
-        // GET ENTITIES
-        $entities = $query->getResult();
-
-        /* SET COUNT */
-        $totalPages = NULL;
-        $countTotalEntities = NULL;
-        $countTotalEntitiesUnfiltered = NULL;
-        if ($storedWithCount) {
-            if ($queryType == ConstanteTipoConsulta::TABLE) {
-
-                $countUnfilteredSql = "SELECT COUNT($aliasTable.id) AS cant FROM $entityTable AS $aliasTable ";
-                $countUnfilteredQuery = $em
-                        ->createQuery($countUnfilteredSql)
-                        ->useResultCache(false);
-
-                $countSql = $countUnfilteredSql . $where;
-
-                $countQuery = $em
-                        ->createQuery($countSql)
-                        ->useResultCache(false);
-
-                foreach ($generatedWhere['queryParameters'] as $queryParameter) {
-                    $countQuery->setParameter($queryParameter['index'], $queryParameter['parameter']);
-                }
-            } // 
-            else {
-                $countUnfilteredSql = "SELECT COUNT($aliasTable.id) AS cant FROM $entityTable AS $aliasTable ";
-
-                $countSql = $countUnfilteredSql . $where;
-
-                $rsm = new ResultSetMapping();
-                $rsm->addScalarResult('cant', 'cant');
-
-                $countQuery = $em->createNativeQuery($countSql, $rsm);
-
-                foreach ($generatedWhere['queryParameters'] as $queryParameter) {
-                    $countQuery->setParameter($queryParameter['index'], $queryParameter['parameter']);
-                }
-
-                $rsmUnfiltered = new ResultSetMapping();
-                $rsmUnfiltered->addScalarResult('cant', 'cant');
-
-                $countUnfilteredQuery = $em->createNativeQuery($countUnfilteredSql, $rsmUnfiltered);
-            }
-
-            //TOTAL FILTERED
-            $countResult = $countQuery->getOneOrNullResult();
-
-            $countTotalEntities = $countResult != null //
-                    ? $countResult['cant'] //
-                    : 0;
-
-            $totalPages = $rows != 0 ? ceil($countTotalEntities / $rows) : 1;
-
-            //TOTAL UNFILTERED
-            $countUnfilteredResult = $countUnfilteredQuery->getOneOrNullResult();
-
-            $countTotalEntitiesUnfiltered = $countUnfilteredResult != null //
-                    ? $countUnfilteredResult['cant'] //
-                    : 0;
-
-            /* FIN SET COUNT */
-        }
-
-
-        $localParameters = array(
-            "entities" => $entities,
-            "currentPage" => $page,
-            "totalPages" => $totalPages,
-            "totalRows" => $countTotalEntitiesUnfiltered,
-            "totalFiltered" => $countTotalEntities,
-            "draw" => $draw
-        );
-
-        $entityNameLower = strtolower(str_replace("\\", "/", $entityFullName));
-
-        $renderPage = $renderPageParam != null //
-                ? $renderPageParam //
-                : "$entityNameLower/index_table.html.twig";
-
-        return $this->render($renderPage, $localParameters);
+      switch ($typeFilter) {
+        case ConstanteTipoFiltro::SELECT:
+          $parameter = $fieldData;
+          break;
+        case ConstanteTipoFiltro::STRING:
+          $parameter = '%' . $fieldData . '%';
+          break;
+        default:
+          $parameter = $fieldData;
+          break;
+      }
     }
 
-    /**
-     * 
-     * @return string
-     */
-    protected function getIndexPath() {
+    return $parameter;
+  }
 
-        $routeName = $this->getRequest()->get('_route');
+  /**
+   * 
+   * @param type $aliasTable
+   * @param type $request
+   * @param type $isTable
+   * @param type $columnDefinition
+   * @param type $filtersParam
+   * @return type
+   */
+  private function getWhereSQL($aliasTable, $request, $isTable, $columnDefinition, $filtersParam = null)
+  {
+    $requestColumns = $request->query->get('columns');
 
-        $explode = explode('_', $routeName);
+    $searchArray = [];
 
-        if (count($explode) > 0) {
-            $indexPath = array_shift($explode) . '_index';
-        } else {
-            $indexPath = '/';
-        }
-
-        return $indexPath;
-    }
-
-    /**
-     * 
-     * @return ResultSetMapping
-     */
-    protected function getRSMResult() {
-        return new ResultSetMapping();
-    }
-
-    /**
-     * 
-     * @param type $request
-     * @return type
-     */
-    protected function getBaseEntityName() {
-        return $this->guesser->guessEntityName();
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getEntityName() {
-        return $this->guesser->guessEntityShortName();
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getEntityFullName() {
-        $namespace = substr($this->guesser->getNamespace(), strpos($this->guesser->getNamespace(), "Controller") + 11);
-        return $namespace ? $namespace."\\".$this->guesser->guessEntityShortName() : $this->guesser->guessEntityShortName();
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getEntityRenderName() {
-        return strtolower($this->guesser->guessEntityShortName());
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getEntityPluralName() {
-        return $this->guesser->guessEntityShortName() . 's';
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getFormTypeName():string {
-        return $this->guesser->guessFormTypeName();
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getEntityShowName($entity) {
-        return $entity->__toString();
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    protected function getURLPrefix() {
-        return strtolower($this->guesser->guessEntityShortName());
-    }
-
-    /**
-     * 
-     * @param type $rule
-     * @param type $ruleIndex
-     * @param type $isTable
-     * @return string
-     */
-    private function getFieldOperation($rule, $ruleIndex, $isTable) {
-
-        $fieldOperation = "";
-
-        if ($rule['value'] != "Todos") {
-
-            switch ($rule['type']) {
-                case ConstanteTipoFiltro::SELECT:
-                    $fieldOperation = " = ?" . ($isTable ? $ruleIndex : '') . ' ';
-                    break;
-                case ConstanteTipoFiltro::STRING:
-                    $fieldOperation = " LIKE ?" . ($isTable ? $ruleIndex : '');
-                    break;
-                default:
-                    $fieldOperation = "";
-                    break;
-            }
-        }
-
-        return $fieldOperation;
-    }
-
-    /**
-     * 
-     * @param type $rule
-     * @return type
-     */
-    private function getFieldParameter($rule) {
-
-        $parameter = null;
-
-        if ($rule['value'] != "Todos") {
-
-            $fieldData = $rule['value'];
-            $typeFilter = $rule['type'];
-
-            if (!empty($fieldData)) {
-                if ($typeFilter == ConstanteTipoFiltro::DATE) {
-                    $fieldData = DateTime::createFromFormat('d/m/Y H:i:s', $fieldData . ' 00:00:00')->format("Y-m-d");
-                } // 
-                elseif ($typeFilter == ConstanteTipoFiltro::DATETIME) {
-                    $fieldData = DateTime::createFromFormat('d/m/Y H:i', substr($fieldData, 0, 16))->format("Y-m-d H:i");
-                }
-            }
-
-            switch ($typeFilter) {
-                case ConstanteTipoFiltro::SELECT:
-                    $parameter = $fieldData;
-                    break;
-                case ConstanteTipoFiltro::STRING:
-                    $parameter = '%' . $fieldData . '%';
-                    break;
-                default:
-                    $parameter = $fieldData;
-                    break;
-            }
-        }
-
-        return $parameter;
-    }
-
-    /**
-     * 
-     * @param type $aliasTable
-     * @param type $request
-     * @param type $isTable
-     * @param type $columnDefinition
-     * @param type $filtersParam
-     * @return type
-     */
-    private function getWhereSQL($aliasTable, $request, $isTable, $columnDefinition, $filtersParam = null) {
-
-        $requestColumns = $request->query->get('columns');
-
-        $searchArray = [];
-
-        foreach ($requestColumns as $columnData) {
-            if ($columnData['search']['value'] !== '') {
-                $column = $columnData['data'];
-                $searchArray[] = [
-                    'column' => $column,
-                    'field' => $columnDefinition[$column]['field'],
-                    'value' => $columnData['search']['value'],
-                    'type' => $columnDefinition[$column]['type'],
-                ];
-            }
-        }
-
-        $where = "";
-        $queryParameters = [];
-        $ruleBaseIndex = 0;
-
-        if (!empty($searchArray)) {
-
-            $where = " WHERE ";
-            $whereArray = [];
-
-            foreach ($searchArray as $ruleIndex => $rule) {
-
-                $typeFilter = $rule['type'];
-
-                $fieldName = $aliasTable . "." . $rule['field'];
-
-                if ($typeFilter == ConstanteTipoFiltro::DATE) {
-                    $fieldName = "DATE($fieldName)";
-                }
-
-                if ($typeFilter == ConstanteTipoFiltro::DATETIME) {
-                    $fieldName = "date_format($fieldName, '%Y-%m-%d %H:%i')";
-                }
-
-                $fieldOperation = $this->getFieldOperation($rule, $ruleIndex + 1, $isTable);
-                $fieldParameter = $this->getFieldParameter($rule);
-
-                if ($fieldOperation != "") {
-                    $whereArray[] = $fieldName . $fieldOperation;
-                }
-
-                if ($fieldParameter != null) {
-                    $queryParameters[] = [
-                        'index' => $ruleIndex + 1,
-                        'parameter' => $fieldParameter
-                    ];
-                }
-
-                $ruleBaseIndex++;
-            }
-
-            if (count($whereArray) > 0) {
-                $where .= join(" AND ", $whereArray);
-            } else {
-                $where .= " 1=1";
-            }
-        }
-
-        return [
-            'where' => $where,
-            'queryParameters' => $queryParameters
+    foreach ($requestColumns as $columnData) {
+      if ($columnData['search']['value'] !== '') {
+        $column = $columnData['data'];
+        $searchArray[] = [
+          'column' => $column,
+          'field' => $columnDefinition[$column]['field'],
+          'value' => $columnData['search']['value'],
+          'type' => $columnDefinition[$column]['type'],
         ];
+      }
     }
 
-    /**
-     * 
-     */
-    private function getOrderArrayParams($request, $columnDefinition) {
+    $where = "";
+    $queryParameters = [];
+    $ruleBaseIndex = 0;
 
-        $requestOrder = $request->query->get('order');
+    if (!empty($searchArray)) {
+      $where = " WHERE ";
+      $whereArray = [];
 
-        $orderByArray = array();
+      foreach ($searchArray as $ruleIndex => $rule) {
+        $typeFilter = $rule['type'];
 
-        if (!empty($requestOrder)) {
+        $fieldName = $aliasTable . "." . $rule['field'];
 
-            foreach ($requestOrder as $option) {
-
-                if (isset($option['column']) && isset($option['dir'])) {
-                    $orderByArray[$columnDefinition[$option['column']]['field']] = strtoupper($option['dir']);
-                }
-            }
+        if ($typeFilter == ConstanteTipoFiltro::DATE) {
+          $fieldName = "DATE($fieldName)";
         }
 
-        return $orderByArray;
+        if ($typeFilter == ConstanteTipoFiltro::DATETIME) {
+          $fieldName = "date_format($fieldName, '%Y-%m-%d %H:%i')";
+        }
+
+        $fieldOperation = $this->getFieldOperation($rule, $ruleIndex + 1, $isTable);
+        $fieldParameter = $this->getFieldParameter($rule);
+
+        if ($fieldOperation != "") {
+          $whereArray[] = $fieldName . $fieldOperation;
+        }
+
+        if ($fieldParameter != null) {
+          $queryParameters[] = [
+            'index' => $ruleIndex + 1,
+            'parameter' => $fieldParameter
+          ];
+        }
+
+        $ruleBaseIndex++;
+      }
+
+      if (count($whereArray) > 0) {
+        $where .= join(" AND ", $whereArray);
+      } else {
+        $where .= " 1=1";
+      }
     }
 
-    /**
-     * 
-     * @param type $aliasTable
-     * @param type $orderByArray
-     * @return string
-     */
-    private function getOrderBySQL($aliasTable, $orderByArray) {
+    return [
+      'where' => $where,
+      'queryParameters' => $queryParameters
+    ];
+  }
 
-        $orderBySQL = "";
+  /**
+   * 
+   */
+  private function getOrderArrayParams($request, $columnDefinition)
+  {
+    $requestOrder = $request->query->get('order');
 
-        if (!empty($orderByArray)) {
+    $orderByArray = array();
 
-            $orderBySQL .= " ORDER BY ";
-
-            $i = 0;
-            $len = count($orderByArray);
-
-            foreach ($orderByArray as $key => $value) {
-
-                $orderBySQL .= $aliasTable . "." . $key
-                        . " " . $value;
-
-                if ($i != $len - 1) {
-                    $orderBySQL .= ", ";
-                }
-
-                $i++;
-            }
+    if (!empty($requestOrder)) {
+      foreach ($requestOrder as $option) {
+        if (isset($option['column']) && isset($option['dir'])) {
+          $orderByArray[$columnDefinition[$option['column']]['field']] = strtoupper($option['dir']);
         }
-
-        return $orderBySQL;
+      }
     }
 
-    /**
-     * 
-     * @param type $entity
-     */
-    protected function updateArchivosAdjuntos($entity, $customPath = '', $archivosAdjuntosOriginales = []) {        
-        foreach ($entity->getArchivosAdjuntos() as $archivoAdjunto) {
-            /* @var $archivoAdjunto ArchivoAdjunto */
+    return $orderByArray;
+  }
 
-            if ($archivoAdjunto->getArchivo() != null) {
-                $archivoAdjunto->setCustomPath($customPath);
-                $archivoAdjunto->setNombre($archivoAdjunto->getArchivo()->getClientOriginalName());
-            }
+  /**
+   * 
+   * @param type $aliasTable
+   * @param Array $orderByArray
+   * @return string
+   */
+  private function getOrderBySQL($aliasTable, $orderByArray)
+  {
+    $orderBySQL = "";
+
+    if (!empty($orderByArray)) {
+      $orderBySQL .= " ORDER BY ";
+
+      $i = 0;
+      $len = count($orderByArray);
+
+      foreach ($orderByArray as $key => $value) {
+        $orderBySQL .= $aliasTable . "." . $key . " " . $value;
+
+        if ($i != $len - 1) {
+          $orderBySQL .= ", ";
         }
 
-        // Por cada ArchivoAdjunto original
+        $i++;
+      }
+    }
+
+    return $orderBySQL;
+  }
+
+  /**
+   * 
+   * @param type $entity
+   */
+  protected function updateArchivosAdjuntos($entity, $customPath = '', $archivosAdjuntosOriginales = [])
+  {
+    foreach ($entity->getArchivosAdjuntos() as $archivoAdjunto) {
+      /* @var $archivoAdjunto ArchivoAdjunto */
+
+      if ($archivoAdjunto->getArchivo() != null) {
+        $archivoAdjunto->setCustomPath($customPath);
+        $archivoAdjunto->setNombre($archivoAdjunto->getArchivo()->getClientOriginalName());
+      }
+    }
+
+    // Por cada ArchivoAdjunto original
+    $em = $this->getDoctrine()->getManager();
+    foreach ($archivosAdjuntosOriginales as $archivoAdjunto) {
+      // Si fue eliminado
+      if (false === $entity->getArchivosAdjuntos()->contains($archivoAdjunto)) {
+        $entity->removeArchivosAdjunto($archivoAdjunto);
+        $em->remove($archivoAdjunto);
+      }
+    }
+  }
+
+  /**
+   * 
+   * @param type $filters
+   */
+  protected function addAditionalFiltersToRequest(Request $request, $newFilters)
+  {
+    $request->query->set('_search', true);
+
+    $filters = json_decode($request->query->get('filters'));
+    if ($filters == null) {
+      $filters = (object) [];
+    }
+
+    $filters->groupOp = "AND";
+    foreach ($newFilters as $newFilter) {
+      $filters->rules[] = (object) $newFilter;
+    }
+
+    $filters = json_encode($filters);
+    $request->query->set('filters', $filters);
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  protected function getBaseBreadcrumbs()
+  {
+    return array(
+      'Inicio' => '',
+      $this->getEntityPluralName() => $this->generateUrl($this->getURLPrefix() . '_index')
+    );
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  protected function getIndexBaseBreadcrumbs()
+  {
+    $breadcrumbs = $this->baseBreadcrumbs;
+    $breadcrumbs[$this->getEntityPluralName()] = null;
+
+    return $breadcrumbs;
+  }
+
+  /**
+   * 
+   * @param type $storedParameters
+   * @param type $request
+   * @return type
+   */
+  private function getRequestStoredParameters($storedParameters, $request)
+  {
+    $filters = str_replace('\"', '"', $request->query->get('filters'));
+    $search = $request->query->get('_search');
+
+    if (($search == "true") && ($filters != "")) {
+      $filters = json_decode($filters);
+
+      foreach ($filters->rules as $fil) {
+        $storedParameters[$fil->field] = ($fil->type == ConstanteTipoFiltro::SELECT && $fil->data == 'Todos') ? NULL : $fil->data;
+      }
+    }
+
+    return $storedParameters;
+  }
+
+  /**
+   * 
+   * @param type $aliasTable
+   * @param type $request
+   * @return string
+   */
+  protected function getAditionalCustomWhereSQL($aliasTable, $request)
+  {
+    return "";
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  protected function getIsProdEnvironment()
+  {
+    return $this->container->get('kernel.environment') == "prod";
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  public function getRequest()
+  {
+    return $this->get('request_stack')->getCurrentRequest();
+  }
+
+  /**
+   * 
+   * @param type $id
+   * @return Array
+   * @throws type
+   */
+  public function baseShowAction($id) 
+  {
+    $em = $this->getDoctrine()->getManager();
+
+    $entityName = $this->getEntityFullName();
+
+    $entity = $em->getRepository("App:$entityName")->find($id);
+
+    if (!$entity) {
+      throw $this->createNotFoundException("No se puede encontrar la entidad $entityName.");
+    }
+
+    $breadcrumbs = $this->getShowBaseBreadcrumbs($entity);
+
+    $parametros = array(
+      'entity' => $entity,
+      'breadcrumbs' => $breadcrumbs,
+      'page_title' => 'Detalle ' . $this->getEntityRenderName()
+    );
+
+    return array_merge($parametros, $this->getExtraParametersShowAction($entity));
+  }
+
+  /**
+   * @param type $entity
+   */
+  protected function getShowBaseBreadcrumbs($entity): Array
+  {
+    $breadcrumbs = $this->baseBreadcrumbs;
+    $breadcrumbs[$this->getEntityShowName($entity)] = $this->generateUrl($this->getURLPrefix() . '_show', array('id' => $entity->getId()));
+    $breadcrumbs['Detalle'] = null;
+
+    return $breadcrumbs;
+  }
+
+  /**
+   * 
+   * @return type
+   */
+  protected function getExtraParametersShowAction($entity): Array 
+  {
+    return [];
+  }
+
+  /**
+   * @return SelectService
+   */
+  protected function getSelectService():SelectService
+  {
+    return $this->selectService;
+  }
+
+    /**
+   * 
+   * @param type $entity
+   * @return Array
+   */
+  public function baseNewAction($entity = null): Array
+  {
+    if ($entity == null) {
+      $entityClassName = $this->getBaseEntityName();
+      $entity = new $entityClassName;
+    }
+
+    $this->baseInitPreCreateForm($entity);
+
+    $form = $this->baseCreateCreateForm($entity);
+
+    $this->setNewFormValues($form, $entity);
+
+    $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);
+
+    $parametros = array(
+      'entity' => $entity,
+      'form' => $form->createView(),
+      'form_action' => $this->getURLPrefix() . '_create',
+      'breadcrumbs' => $breadcrumbs,
+      'page_title' => 'Agregar ' . $this->getEntityRenderName()
+    );
+
+    return array_merge($parametros, $this->getExtraParametersNewAction($entity));
+  }
+
+  /**
+   * 
+   * @param type $entity
+   */
+  protected function baseInitPreCreateForm($entity)
+  {      
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @return FormInterface
+   */
+  protected function baseCreateCreateForm($entity): FormInterface
+  {
+    $entityFormTypeClassName = $this->getFormTypeName();
+
+    $form = $this->baseInitCreateCreateForm($entityFormTypeClassName, $entity);
+
+    $form->add('submit', SubmitType::class, array(
+      'label' => 'Agregar',
+      'attr' => array('class' => 'btn btn-light-primary font-weight-bold submit-button'))
+    );
+
+    return $form;
+  }
+
+  /**
+   * 
+   * @param string $entityFormTypeClassName
+   * @param type $entity
+   * @return FormInterface
+   */
+  protected function baseInitCreateCreateForm($entityFormTypeClassName, $entity): FormInterface
+  {
+    return $this->createForm($entityFormTypeClassName, $entity, array(
+      'action' => $this->generateUrl($this->getURLPrefix() . '_create'),
+      'method' => 'POST',
+    ));
+  }
+
+  /**
+   * 
+   * @param type $form
+   * @param type $entity
+   */
+  protected function setNewFormValues($form, $entity)
+  {        
+  }
+
+
+  /**
+   * 
+   * @return Array
+   */
+  protected function getExtraParametersNewAction($entity): Array
+  {
+    return [];
+  }
+
+  /**
+   * 
+   * @param Request $request
+   * @param type $isAjaxCall
+   * @return type
+   */
+  public function baseCreateAction(Request $request, $isAjaxCall = false)
+  {
+    $entityClassName = $this->getBaseEntityName($request);
+
+    $entity = new $entityClassName;
+
+    $this->preHandleRequestBaseCreateAction($entity, $request);
+
+    $form = $this->baseCreateCreateForm($entity);
+    $form->handleRequest($request);
+
+    if ($form->isValid()) {
+      $isValid = $this->execPrePersistAction($entity, $request);
+
+      if ($isValid) {
         $em = $this->getDoctrine()->getManager();
-        foreach ($archivosAdjuntosOriginales as $archivoAdjunto) {
-            // Si fue eliminado
-            if (false === $entity->getArchivosAdjuntos()->contains($archivoAdjunto)) {
-                $entity->removeArchivosAdjunto($archivoAdjunto);
-                $em->remove($archivoAdjunto);
-            }
-        }
-    }
 
-    /**
-     * 
-     * @param type $filters
-     */
-    protected function addAditionalFiltersToRequest(Request $request, $newFilters) {
-
-        $request->query->set('_search', true);
-
-        $filters = json_decode($request->query->get('filters'));
-        if ($filters == null) {
-            $filters = (object) [];
+        if ($this->checkPersistEntityInCreateAction()) {
+          $em->persist($entity);
         }
 
-        $filters->groupOp = "AND";
-        foreach ($newFilters as $newFilter) {
-            $filters->rules[] = (object) $newFilter;
-        }
+        $em->flush();
 
-        $filters = json_encode($filters);
-        $request->query->set('filters', $filters);
-    }
+        $this->execPostPersistAction($entity, $request);
 
-    /**
-     * 
-     * @return type
-     */
-    protected function getBaseBreadcrumbs() {
-
-        return array(
-            'Inicio' => '',
-            $this->getEntityPluralName() => $this->generateUrl($this->getURLPrefix() . '_index')
-        );
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    protected function getIndexBaseBreadcrumbs() {
-
-        $breadcrumbs = $this->baseBreadcrumbs;
-        $breadcrumbs[$this->getEntityPluralName()] = null;
-
-        return $breadcrumbs;
-    }
-
-    /**
-     * 
-     * @param type $storedParameters
-     * @param type $request
-     * @return type
-     */
-    private function getRequestStoredParameters($storedParameters, $request) {
-
-        $filters = str_replace('\"', '"', $request->query->get('filters'));
-        $search = $request->query->get('_search');
-
-        if (($search == "true") && ($filters != "")) {
-
-            $filters = json_decode($filters);
-
-            foreach ($filters->rules as $fil) {
-                $storedParameters[$fil->field] = ($fil->type == ConstanteTipoFiltro::SELECT && $fil->data == 'Todos') ? NULL : $fil->data;
-            }
-        }
-
-        return $storedParameters;
-    }
-
-    /**
-     * 
-     * @param type $aliasTable
-     * @param type $request
-     * @return string
-     */
-    protected function getAditionalCustomWhereSQL($aliasTable, $request) {
-        return "";
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    protected function getIsProdEnvironment() {
-        return $this->container->get('kernel.environment') == "prod";
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    public function getRequest() {
-        return $this->get('request_stack')->getCurrentRequest();
-    }
-
-    /**
-     * 
-     * @param type $id
-     * @return Array
-     * @throws type
-     */
-    public function baseShowAction($id) 
-    {
-        $em = $this->getDoctrine()->getManager();
-
-        $entityName = $this->getEntityFullName();
-
-        $entity = $em->getRepository("App:$entityName")->find($id);
-
-        if (!$entity) {
-            throw $this->createNotFoundException("No se puede encontrar la entidad $entityName.");
-        }
-
-        $breadcrumbs = $this->getShowBaseBreadcrumbs($entity);
-
-        $parametros = array(
-            'entity' => $entity,
-            'breadcrumbs' => $breadcrumbs,
-            'page_title' => 'Detalle ' . $this->getEntityRenderName()
-        );
-
-        return array_merge($parametros, $this->getExtraParametersShowAction($entity));
-    }
-
-    /**
-     * @param type $entity
-     */
-    protected function getShowBaseBreadcrumbs($entity): Array
-    {
-
-        $breadcrumbs = $this->baseBreadcrumbs;
-        $breadcrumbs[$this->getEntityShowName($entity)] = $this->generateUrl($this->getURLPrefix() . '_show', array('id' => $entity->getId()));
-        $breadcrumbs['Detalle'] = null;
-
-        return $breadcrumbs;
-    }
-
-    /**
-     * 
-     * @return type
-     */
-    protected function getExtraParametersShowAction($entity): Array 
-    {
-        return [];
-    }
-
-    /**
-     * @return SelectService
-     */
-    protected function getSelectService():SelectService
-    {
-        return $this->selectService;
-    }
-
-     /**
-     * 
-     * @param type $entity
-     * @return type
-     */
-    public function baseNewAction($entity = null): Array {
-
-        if ($entity == null) {
-
-            $entityClassName = $this->getBaseEntityName();
-
-            $entity = new $entityClassName;
-        }
-
-        $this->baseInitPreCreateForm($entity);
-
-        $form = $this->baseCreateCreateForm($entity);
-
-        $this->setNewFormValues($form, $entity);
-
-        $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);
-
-        $parametros = array(
-            'entity' => $entity,
-            'form' => $form->createView(),
-            'form_action' => $this->getURLPrefix() . '_create',
-            'breadcrumbs' => $breadcrumbs,
-            'page_title' => 'Agregar ' . $this->getEntityRenderName()
-        );
-
-        return array_merge($parametros, $this->getExtraParametersNewAction($entity));
-    }
-
-    /**
-     * 
-     * @param type $entity
-     */
-    protected function baseInitPreCreateForm($entity) {
-        
-    }
-
-    /**
-     * 
-     * @param type $entity
-     * @return type
-     */
-    protected function baseCreateCreateForm($entity): FormInterface {
-
-        $entityFormTypeClassName = $this->getFormTypeName();
-
-        $form = $this->baseInitCreateCreateForm($entityFormTypeClassName, $entity);
-
-        $form->add('submit', SubmitType::class, array(
-            'label' => 'Agregar',
-            'attr' => array('class' => 'btn btn-light-primary font-weight-bold submit-button'))
-        );
-
-        return $form;
-    }
-
-    /**
-     * 
-     * @param string $entityFormTypeClassName
-     * @param type $entity
-     * @return type
-     */
-    protected function baseInitCreateCreateForm($entityFormTypeClassName, $entity): FormInterface {
-        return $this->createForm($entityFormTypeClassName, $entity, array(
-            'action' => $this->generateUrl($this->getURLPrefix() . '_create'),
-            'method' => 'POST',
-        ));
-    }
-
-    /**
-     * 
-     * @param type $form
-     * @param type $entity
-     */
-    protected function setNewFormValues($form, $entity) {        
-    }
-
-
-    /**
-     * 
-     * @return Array
-     */
-    protected function getExtraParametersNewAction($entity):Array {
-        return [];
-    }
-
-    /**
-     * 
-     * @param Request $request
-     * @param type $isAjaxCall
-     * @return type
-     */
-    public function baseCreateAction(Request $request, $isAjaxCall = false) {
-
-        $entityClassName = $this->getBaseEntityName($request);
-
-        $entity = new $entityClassName;
-
-        $this->preHandleRequestBaseCreateAction($entity, $request);
-
-        $form = $this->baseCreateCreateForm($entity);
-        $form->handleRequest($request);
-
-        //Debug::dump($form->getErrors(), 3);die;
-
-        if ($form->isValid()) {
-
-            $isValid = $this->execPrePersistAction($entity, $request);
-
-            if ($isValid) {
-
-                $em = $this->getDoctrine()->getManager();
-
-                if ($this->checkPersistEntityInCreateAction()) {
-                    $em->persist($entity);
-                }
-
-                $em->flush();
-
-                $this->execPostPersistAction($entity, $request);
-
-                $message = $this->getCreateMessage(true);
-
-                if (!$isAjaxCall) {
-
-                    $this->get('session')->getFlashBag()->add('success', $message);
-
-                    return $this->getCreateRedirectResponse($request, $entity);
-                } else {
-
-                    $response = new Response();
-
-                    $response->setContent(json_encode(array(
-                        'message' => $message,
-                        'statusCode' => Response::HTTP_OK,
-                        'statusText' => ConstanteAPI::STATUS_TEXT_OK
-                    )));
-
-                    return $response;
-                }
-            } else {
-                $request->attributes->set('form-error', true);
-            }
-        } //. 
-        else {
-            $request->attributes->set('form-error', true);
-        }
+        $message = $this->getCreateMessage(true);
 
         if (!$isAjaxCall) {
-
-            $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);
-
-            $parametros = array(
-                'entity' => $entity,
-                'form' => $form->createView(),
-                'breadcrumbs' => $breadcrumbs,
-                'page_title' => 'Agregar ' . $this->getEntityRenderName()
-            );
-
-            return array_merge($parametros, $this->getExtraParametersNewAction($entity));
+          $this->get('session')->getFlashBag()->add('success', $message);
+          return $this->getCreateRedirectResponse($request, $entity);
         } else {
+          $response = new Response();
+          $response->setContent(json_encode(array(
+            'message' => $message,
+            'statusCode' => Response::HTTP_OK,
+            'statusText' => ConstanteAPI::STATUS_TEXT_OK
+          )));
 
-            $response = new Response();
-
-            $response->setContent(json_encode(array(
-                'statusCode' => Response::HTTP_OK,
-                'statusText' => ConstanteAPI::STATUS_TEXT_ERROR,
-                'message' => $this->getCreateErrorMessage(),
-            )));
-
-            return $response;
+          return $response;
         }
+      } else {
+        $request->attributes->set('form-error', true);
+      }
+    } else {
+      $request->attributes->set('form-error', true);
     }
 
-    /**
-     * 
-     * @param type $entity
-     * @param type $request
-     */
-    protected function preHandleRequestBaseCreateAction($entity, $request) {
-        
+    if (!$isAjaxCall) {
+      $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);
+
+      $parametros = array(
+        'entity' => $entity,
+        'form' => $form->createView(),
+        'breadcrumbs' => $breadcrumbs,
+        'page_title' => 'Agregar ' . $this->getEntityRenderName()
+      );
+
+      return array_merge($parametros, $this->getExtraParametersNewAction($entity));
+    } else {
+      $response = new Response();
+
+      $response->setContent(json_encode(array(
+        'statusCode' => Response::HTTP_OK,
+        'statusText' => ConstanteAPI::STATUS_TEXT_ERROR,
+        'message' => $this->getCreateErrorMessage(),
+      )));
+
+      return $response;
+    }
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @param type $request
+   */
+  protected function preHandleRequestBaseCreateAction($entity, $request)
+  {      
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @param type $request
+   * @return bool
+   */
+  protected function execPrePersistAction($entity, $request): bool
+  {
+    return true;
+  }
+
+  /**
+   * 
+   * @return bool
+   */
+  protected function checkPersistEntityInCreateAction(): bool
+  {
+    return true;
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @param type $request
+   */
+  protected function execPostPersistAction($entity, $request)
+  {      
+  }
+
+  /**
+   * 
+   * @param type $useDecode
+   * @return string
+   */
+  protected function getCreateMessage($useDecode = false): string
+  {
+    $message = $this->getCreateSuccessMessage();
+
+    if ($useDecode) {
+      $message = html_entity_decode($message);
     }
 
-    /**
-     * 
-     * @param type $entity
-     * @param type $request
-     * @return bool
-     */
-    protected function execPrePersistAction($entity, $request): bool {
+    return $message;
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getCreateSuccessMessage(): string
+  {
+    return 'El alta se realiz&oacute; con &eacute;xito.';
+  }
+
+  /**
+   * 
+   * @param Request $request
+   * @param type $entity
+   * @return RedirectResponse
+   */
+  protected function getCreateRedirectResponse(Request $request, $entity): RedirectResponse
+  {
+    return $this->redirectToRoute($this->getURLPrefix() . "_index");
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getCreateErrorMessage(): string
+  {
+    return 'Ocurri&oacute; un error al intentar guardar. Por favor int&eacute;ntelo nuevamente.';
+  }
+
+  /**
+   * 
+   * @param type $form
+   * @param type $entity
+   * @return Array
+   */
+  protected function getNewBaseBreadcrumbs($form, $entity): Array
+  {
+    $breadcrumbs = $this->baseBreadcrumbs;
+    $breadcrumbs['Agregar'] = null;
+
+    return $breadcrumbs;
+  }
+
+  /**
+   * 
+   * @param type $id
+   * @return Array
+   * @throws type
+   */
+  public function baseEditAction($id)
+  {
+      $em = $this->getDoctrine()->getManager();
+      $entity = $em->getRepository($this->getBaseEntityName())->find($id);
+      if (!$entity) {
+        $entityShortName = $this->guesser->guessEntityShortName();
+        throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
+      }
+
+      if (!$this->baseEditActionAccess($entity)) {
+        $request = $this->container->get('request_stack')->getCurrentRequest();
+        return $this->getEditRedirectResponse($request, $entity);
+      }
+
+      $this->baseInitPreEditForm($entity);
+
+      $editForm = $this->baseCreateEditForm($entity);
+
+      $this->setEditFormValues($editForm, $entity);
+
+      $breadcrumbs = $this->getEditBaseBreadcrumbs($editForm, $entity);
+
+      $parametros = array(
+        'entity' => $entity,
+        'form' => $editForm->createView(),
+        'breadcrumbs' => $breadcrumbs,
+        'page_title' => 'Editar ' . $this->getEntityRenderName()
+      );
+
+      return array_merge($parametros, $this->getExtraParametersEditAction($entity));
+  }
+  
+  /**
+   * 
+   * @param type $entity
+   * @return boolean
+   */
+  protected function baseEditActionAccess($entity)
+  {
+    return true;
+    if ($this->get('security.authorization_checker')->isGranted('ROLE_USER')) {
         return true;
     }
 
-    /**
-     * 
-     * @return bool
-     */
-    protected function checkPersistEntityInCreateAction(): bool {
-        return true;
+    return false;
+  }
+
+  /**
+   * 
+   * @param Request $request
+   * @param type $entity
+   * @return RedirectResponse
+   */
+  protected function getEditRedirectResponse(Request $request, $entity): RedirectResponse
+  {
+    return $this->redirectToRoute($this->getURLPrefix() . "_index");
+  }
+
+  /**
+   * 
+   * @param type $entity
+   */
+  protected function baseInitPreEditForm($entity)
+  {      
+  }
+
+  /**
+   * 
+   * @param $entity
+   * @return type
+   */
+  protected function baseCreateEditForm($entity)
+  {
+    $entityFormTypeClassName = $this->getFormTypeName();
+
+    $form = $this->baseInitCreateEditForm($entityFormTypeClassName, $entity);
+
+    $form->add('submit', SubmitType::class, array(
+      'label' => 'Actualizar',
+      'attr' => array('class' => 'btn btn-light-primary font-weight-bold submit-button'))
+    );
+
+    return $form;
+  }
+
+  /**
+   * 
+   * @param string $entityFormTypeClassName
+   * @param type $entity
+   * @return FormInterface
+   */
+  protected function baseInitCreateEditForm($entityFormTypeClassName, $entity): FormInterface
+  {
+    return $this->createForm($entityFormTypeClassName, $entity, array(
+      'action' => $this->generateUrl($this->getURLPrefix() . '_update', array('id' => $entity->getId())),
+      'method' => 'PUT',
+    ));
+  }
+
+  /**
+   * 
+   * @param type $form
+   * @param type $entity
+   * @return Array
+   */
+  protected function getEditBaseBreadcrumbs($form, $entity): Array
+  {
+    $breadcrumbs = $this->baseBreadcrumbs;
+    $breadcrumbs[$this->getEntityShowName($entity)] = $this->generateUrl($this->getURLPrefix() . '_show', array('id' => $entity->getId()));
+    $breadcrumbs['Editar'] = null;
+
+    return $breadcrumbs;
+  }
+
+  /**
+   * 
+   * @return Array
+   */
+  protected function getExtraParametersEditAction($entity): Array
+  {
+    return [];
+  }
+
+  /**
+   * 
+   * @param type $editForm
+   * @param type $entity
+   */
+  protected function setEditFormValues($editForm, $entity)
+  {      
+  }
+
+  /**
+   * 
+   * @param Request $request
+   * @param type $id
+   * @param type $isAjaxCall
+   * @return type
+   * @throws type
+   */
+  public function baseUpdateAction(Request $request, $id, $isAjaxCall = false)
+  {
+    $em = $this->getDoctrine()->getManager();
+    $entityClassName = $this->getBaseEntityName($request);
+    $entity = $em->getRepository($entityClassName)->find($id);
+
+    if (!$entity) {
+      $entityShortName = $this->guesser->guessEntityShortName();
+      throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
     }
 
-    /**
-     * 
-     * @param type $entity
-     * @param type $request
-     */
-    protected function execPostPersistAction($entity, $request) {
-        
-    }
+    $localVariablesArray = $this->getUpdateActionVariables($entity);
 
-    /**
-     * 
-     * @param type $useDecode
-     * @return string
-     */
-    protected function getCreateMessage($useDecode = false): string {
+    $editForm = $this->baseCreateEditForm($entity);
+    $editForm->handleRequest($request);
 
-        $message = $this->getCreateSuccessMessage();
+    if ($editForm->isValid()) {
+      $isValid = $this->execPreUpdateAction($entity, $request, $localVariablesArray);
 
-        if ($useDecode) {
-            $message = html_entity_decode($message);
-        }
-
-        return $message;
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getCreateSuccessMessage(): string {
-        return 'El alta se realiz&oacute; con &eacute;xito.';
-    }
-
-    /**
-     * 
-     * @param Request $request
-     * @param type $entity
-     * @return RedirectResponse
-     */
-    protected function getCreateRedirectResponse(Request $request, $entity): RedirectResponse {
-        return $this->redirectToRoute($this->getURLPrefix() . "_index");
-    }
-
-    /**
-     * 
-     * @return string
-     */
-    protected function getCreateErrorMessage(): string {
-        return 'Ocurri&oacute; un error al intentar guardar. Por favor int&eacute;ntelo nuevamente.';
-    }
-
-    /**
-     * 
-     * @param type $form
-     * @param type $entity
-     * @return Array
-     */
-    protected function getNewBaseBreadcrumbs($form, $entity): Array {
-
-        $breadcrumbs = $this->baseBreadcrumbs;
-        $breadcrumbs['Agregar'] = null;
-
-        return $breadcrumbs;
-    }
-
-     /**
-     * 
-     * @param type $id
-     * @return type
-     * @throws type
-     */
-    public function baseEditAction($id): Array {
-
-        $em = $this->getDoctrine()->getManager();
-
-        $entity = $em->getRepository($this->getBaseEntityName())->find($id);
-
-        if (!$entity) {
-
-            $entityShortName = $this->guesser->guessEntityShortName();
-
-            throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
-        }
-
-        if (!$this->baseEditActionAccess($entity)) {
-
-            $request = $this->container->get('request_stack')->getCurrentRequest();
-
-            return $this->getEditRedirectResponse($request, $entity);
-        }
-
-        $this->baseInitPreEditForm($entity);
-
-        $editForm = $this->baseCreateEditForm($entity);
-
-        $this->setEditFormValues($editForm, $entity);
-
-        $breadcrumbs = $this->getEditBaseBreadcrumbs($editForm, $entity);
-
-        $parametros = array(
-            'entity' => $entity,
-            'form' => $editForm->createView(),
-            'breadcrumbs' => $breadcrumbs,
-            'page_title' => 'Editar ' . $this->getEntityRenderName()
-        );
-
-        return array_merge($parametros, $this->getExtraParametersEditAction($entity));
-    }
-    
-    /**
-     * 
-     * @param type $entity
-     * @return boolean
-     */
-    protected function baseEditActionAccess($entity) {
-return true;
-        if ($this->get('security.authorization_checker')->isGranted('ROLE_USER')) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * 
-     * @param Request $request
-     * @param type $entity
-     * @return RedirectResponse
-     */
-    protected function getEditRedirectResponse(Request $request, $entity): RedirectResponse {
-        return $this->redirectToRoute($this->getURLPrefix() . "_index");
-    }
-
-    /**
-     * 
-     * @param type $entity
-     */
-    protected function baseInitPreEditForm($entity) {
-        
-    }
-
-    /**
-     * 
-     * @param $entity
-     * @return type
-     */
-    protected function baseCreateEditForm($entity) {
-
-        $entityFormTypeClassName = $this->getFormTypeName();
-
-        $form = $this->baseInitCreateEditForm($entityFormTypeClassName, $entity);
-
-        $form->add('submit', SubmitType::class, array(
-            'label' => 'Actualizar',
-            'attr' => array('class' => 'btn btn-light-primary font-weight-bold submit-button'))
-        );
-
-        return $form;
-    }
-
-    /**
-     * 
-     * @param type $entityFormTypeClassName
-     * @param type $entity
-     * @return FormInterface
-     */
-    protected function baseInitCreateEditForm($entityFormTypeClassName, $entity): FormInterface {
-        return $this->createForm($entityFormTypeClassName, $entity, array(
-                    'action' => $this->generateUrl($this->getURLPrefix() . '_update', array('id' => $entity->getId())),
-                    'method' => 'PUT',
-        ));
-    }
-
-    /**
-     * 
-     * @param type $form
-     * @param type $entity
-     * @return Array
-     */
-    protected function getEditBaseBreadcrumbs($form, $entity): Array {
-
-        $breadcrumbs = $this->baseBreadcrumbs;
-        $breadcrumbs[$this->getEntityShowName($entity)] = $this->generateUrl($this->getURLPrefix() . '_show', array('id' => $entity->getId()));
-        $breadcrumbs['Editar'] = null;
-
-        return $breadcrumbs;
-    }
-
-    /**
-     * 
-     * @return Array
-     */
-    protected function getExtraParametersEditAction($entity): Array {
-        return [];
-    }
-
-    /**
-     * 
-     * @param type $editForm
-     * @param type $entity
-     */
-    protected function setEditFormValues($editForm, $entity) {
-        
-    }
-
-    /**
-     * 
-     * @param Request $request
-     * @param type $id
-     * @param type $isAjaxCall
-     * @return type
-     * @throws type
-     */
-    public function baseUpdateAction(Request $request, $id, $isAjaxCall = false) {
-
-        $em = $this->getDoctrine()->getManager();
-
-        $entityClassName = $this->getBaseEntityName($request);
-
-        $entity = $em->getRepository($entityClassName)->find($id);
-
-        if (!$entity) {
-
-            $entityShortName = $this->guesser->guessEntityShortName();
-
-            throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
-        }
-
-        $localVariablesArray = $this->getUpdateActionVariables($entity);
-
-        $editForm = $this->baseCreateEditForm($entity);
-        $editForm->handleRequest($request);
-
-        if ($editForm->isValid()) {
-
-            $isValid = $this->execPreUpdateAction($entity, $request, $localVariablesArray);
-
-            if ($isValid) {
-
-                $em->flush();
-
-                $message = $this->getUpdateMessage($entity, true);
-
-                if (!$isAjaxCall) {
-
-                    $this->get('session')->getFlashBag()->add('success', $message);
-
-                    return $this->getEditRedirectResponse($request, $entity);
-                } //
-                else {
-
-                    $response = new Response();
-
-                    $response->setContent(json_encode(array(
-                        'statusCode' => Response::HTTP_OK,
-                        'statusText' => ConstanteAPI::STATUS_TEXT_OK,
-                        'message' => $message
-                    )));
-
-                    return $response;
-                }
-            } else {
-                $request->attributes->set('form-error', true);
-            }
-        } //. 
-        else {
-            $request->attributes->set('form-error', true);
-        }
-
-
-
+      if ($isValid) {
+        $em->flush();
+        $message = $this->getUpdateMessage($entity, true);
         if (!$isAjaxCall) {
-
-            $breadcrumbs = $this->getEditBaseBreadcrumbs($editForm, $entity);
-
-            $parametros = array(
-                'entity' => $entity,
-                'form' => $editForm->createView(),
-                'breadcrumbs' => $breadcrumbs,
-                'page_title' => 'Editar ' . $this->getEntityRenderName()
-            );
-
-            return array_merge($parametros, $this->getExtraParametersEditAction($entity));
-        } //
-        else {
-
-            $response = new Response();
-
-            $response->setContent(json_encode(array(
-                'statusCode' => Response::HTTP_OK,
-                'statusText' => ConstanteAPI::STATUS_TEXT_ERROR,
-                'message' => $this->getCreateErrorMessage(),
-            )));
-
-            return $response;
-        }
-    }
-
-    /**
-     * 
-     * @param type $entity
-     * @return ArrayCollection
-     */
-    protected function getUpdateActionVariables($entity) {
-
-        $resultArray = [];
-
-        $accessor = PropertyAccess::createPropertyAccessor();
-
-        if ($accessor->isReadable($entity, 'archivosAdjuntos')) {
-
-            $resultArray['archivosAdjuntosOriginales'] = new ArrayCollection();
-
-            foreach ($entity->getArchivosAdjuntos() as $archivoAdjunto) {
-                $resultArray['archivosAdjuntosOriginales']->add($archivoAdjunto);
-            }
-        }
-
-        return $resultArray;
-    }
-
-    /**
-     * 
-     * @param type $entity
-     * @param type $request
-     * @param type $localVariablesArray
-     */
-    protected function execPreUpdateAction($entity, $request, $localVariablesArray) {
-
-        // Actualiza los ArchivoAdjunto
-        if (method_exists($entity, 'getCustomPath')) {
-
-            if (!empty($localVariablesArray['archivosAdjuntosOriginales'])) {
-
-                $archivosAdjuntosOriginales = $localVariablesArray['archivosAdjuntosOriginales'];
-
-                if ($archivosAdjuntosOriginales != null) {
-                    $this->updateArchivosAdjuntos($entity, $entity->getCustomPath(), $archivosAdjuntosOriginales);
-                }
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * 
-     * @param type $entity
-     * @param type $useDecode
-     * @return string
-     */
-    protected function getUpdateMessage($entity, $useDecode = false): string {
-
-        $message = $this->getUpdateSuccessMessage($entity);
-
-        if ($useDecode) {
-            $message = html_entity_decode($message);
-        }
-
-        return $message;
-    }
-
-    /**
-     * 
-     * @param type $entity
-     * @return string
-     */
-    protected function getUpdateSuccessMessage($entity): string {
-        return 'La actualizaci&oacute;n se realiz&oacute; con &eacute;xito.';
-    }
-
-    /**
-     * 
-     * @param type $id
-     * @param type $indexParams
-     * @param type $isAjaxCall
-     * @return type
-     * @throws type
-     */
-    public function baseDeleteAction($id, $indexParams = array(), $isAjaxCall = false) 
-    {
-
-        $em = $this->getDoctrine()->getManager();
-        $entity = $em->getRepository($this->getBaseEntityName())->find($id);
-        if (!$entity) {
-            $entityShortName = $this->guesser->guessEntityShortName();
-            throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
-        }
-
-        $error = false;
-        $em->remove($entity);
-
-        try {
-            $em->flush();
-        } catch (DBALException $e) {
-            $error = true;
-        }
-
-        // Si hubo un error
-        if ($error) {
-            $this->getRequest()->attributes->set('form-error', true);
-
-            if (!$isAjaxCall) {
-                $this->get('session')->getFlashBag()->set('error', $this->getDeleteErrorMessage());
-                return $this->redirect($this->generateUrl($this->getIndexPath(), $indexParams));
-            } else {
-                $result = array(
-                    'status' => 'ERROR',
-                    'message' => $this->getDeleteErrorMessage()
-                );
-
-                return new JsonResponse($result);
-            }
+          $this->get('session')->getFlashBag()->add('success', $message);
+          return $this->getEditRedirectResponse($request, $entity);
         } else {
-            if (!$isAjaxCall) {
-                $this->get('session')->getFlashBag()->add('success', $this->getDeleteMessage(true));
-                return $this->getDeleteRedirectResponse($entity);
-            } else {
-                $result = array(
-                    'status' => 'OK',
-                    'message' => $this->getDeleteMessage()
-                );
+          $response = new Response();
 
-                return new JsonResponse($result);
-            }
+          $response->setContent(json_encode(array(
+            'statusCode' => Response::HTTP_OK,
+            'statusText' => ConstanteAPI::STATUS_TEXT_OK,
+            'message' => $message
+          )));
+
+          return $response;
         }
+      } else {
+        $request->attributes->set('form-error', true);
+      }
+    } else {
+      $request->attributes->set('form-error', true);
     }
 
-    /**
-     * 
-     * @return string
-     */
-    protected function getDeleteErrorMessage(): string
-    {
-        return 'No se pudo eliminar la entidad. Ha ocurrido un error.';
+    if (!$isAjaxCall) {
+      $breadcrumbs = $this->getEditBaseBreadcrumbs($editForm, $entity);
+
+      $parametros = array(
+        'entity' => $entity,
+        'form' => $editForm->createView(),
+        'breadcrumbs' => $breadcrumbs,
+        'page_title' => 'Editar ' . $this->getEntityRenderName()
+      );
+
+      return array_merge($parametros, $this->getExtraParametersEditAction($entity));
+    } else {
+      $response = new Response();
+
+      $response->setContent(json_encode(array(
+        'statusCode' => Response::HTTP_OK,
+        'statusText' => ConstanteAPI::STATUS_TEXT_ERROR,
+        'message' => $this->getCreateErrorMessage(),
+      )));
+
+      return $response;
+    }
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @return ArrayCollection
+   */
+  protected function getUpdateActionVariables($entity)
+  {
+    $resultArray = [];
+
+    $accessor = PropertyAccess::createPropertyAccessor();
+
+    if ($accessor->isReadable($entity, 'archivosAdjuntos')) {
+      $resultArray['archivosAdjuntosOriginales'] = new ArrayCollection();
+
+      foreach ($entity->getArchivosAdjuntos() as $archivoAdjunto) {
+        $resultArray['archivosAdjuntosOriginales']->add($archivoAdjunto);
+      }
     }
 
-    /**
-     * 
-     * @param type $useDecode
-     * @return string
-     */
-    protected function getDeleteMessage($useDecode = false):string 
-    {
-        $message = $this->getDeleteSuccessMessage();
+    return $resultArray;
+  }
 
-        if ($useDecode) {
-            $message = html_entity_decode($message);
+  /**
+   * 
+   * @param type $entity
+   * @param type $request
+   * @param type $localVariablesArray
+   */
+  protected function execPreUpdateAction($entity, $request, $localVariablesArray)
+  {
+    // Actualiza los ArchivoAdjunto
+    if (method_exists($entity, 'getCustomPath')) {
+      if (!empty($localVariablesArray['archivosAdjuntosOriginales'])) {
+        $archivosAdjuntosOriginales = $localVariablesArray['archivosAdjuntosOriginales'];
+
+        if ($archivosAdjuntosOriginales != null) {
+          $this->updateArchivosAdjuntos($entity, $entity->getCustomPath(), $archivosAdjuntosOriginales);
         }
-
-        return $message;
+      }
     }
 
-    /**
-     * 
-     * @return string
-     */
-    protected function getDeleteSuccessMessage():string 
-    {
-        return 'La eliminaci&oacute;n se realiz&oacute; con &eacute;xito.';
+    return true;
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @param type $useDecode
+   * @return string
+   */
+  protected function getUpdateMessage($entity, $useDecode = false): string
+  {
+    $message = $this->getUpdateSuccessMessage($entity);
+
+    if ($useDecode) {
+      $message = html_entity_decode($message);
     }
 
-    /**
-     * 
-     * @return RedirectResponse
-     */
-    protected function getDeleteRedirectResponse($entity): RedirectResponse {
-        return $this->redirectToRoute($this->getURLPrefix() . "_index");
+    return $message;
+  }
+
+  /**
+   * 
+   * @param type $entity
+   * @return string
+   */
+  protected function getUpdateSuccessMessage($entity): string
+  {
+    return 'La actualizaci&oacute;n se realiz&oacute; con &eacute;xito.';
+  }
+
+  /**
+   * 
+   * @param type $id
+   * @param type $indexParams
+   * @param type $isAjaxCall
+   * @return type
+   * @throws type
+   */
+  public function baseDeleteAction($id, $indexParams = array(), $isAjaxCall = false) 
+  {
+    $em = $this->getDoctrine()->getManager();
+    $entity = $em->getRepository($this->getBaseEntityName())->find($id);
+    if (!$entity) {
+      $entityShortName = $this->guesser->guessEntityShortName();
+      throw $this->createNotFoundException("No se puede encontrar la entidad $entityShortName.");
     }
 
-    protected function downloadAction(Request $request, $id) {
+    $error = false;
+    $em->remove($entity);
 
-        $em = $this->getDoctrine()->getManager();
-
-        $roleHabilitado = $this->getRoleHabilitadoDownloadAction($request, $id);
-
-        if($this->authChecker->isGranted($roleHabilitado)){
-
-            $archivoAdjunto = $em->getRepository('App:ArchivoAdjunto')->find($id);
-
-            if (!$archivoAdjunto) {
-                throw $this->createNotFoundException("No se puede encontrar la entidad ArchivoAdjunto.");
-            } 
-
-            $this->getCustomDownloadAction($archivoAdjunto, $request, $id);
-
-            $response = new BinaryFileResponse($this->parameterBag->get('kernel.project_dir') . '/public/uploads/archivo_adjunto/' . $archivoAdjunto->getCustomPath() . '/' . $archivoAdjunto->getNombreArchivo());
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $archivoAdjunto->getNombre());
-            return $response;
-
-        } else {
-            return new Response();
-        }
+    try {
+      $em->flush();
+    } catch (DBALException $e) {
+      $error = true;
     }
 
-    protected function getRoleHabilitadoDownloadAction(Request $request, $id){
-        return 'ROLE_USER';
+    // Si hubo un error
+    if ($error) {
+      $this->getRequest()->attributes->set('form-error', true);
+
+      if (!$isAjaxCall) {
+        $this->get('session')->getFlashBag()->set('error', $this->getDeleteErrorMessage());
+        return $this->redirect($this->generateUrl($this->getIndexPath(), $indexParams));
+      } else {
+        $result = array(
+          'status' => 'ERROR',
+          'message' => $this->getDeleteErrorMessage()
+        );
+
+        return new JsonResponse($result);
+      }
+    } else {
+      if (!$isAjaxCall) {
+        $this->get('session')->getFlashBag()->add('success', $this->getDeleteMessage(true));
+        return $this->getDeleteRedirectResponse($entity);
+      } else {
+        $result = array(
+          'status' => 'OK',
+          'message' => $this->getDeleteMessage()
+        );
+
+        return new JsonResponse($result);
+      }
+    }
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getDeleteErrorMessage(): string
+  {
+    return 'No se pudo eliminar la entidad. Ha ocurrido un error.';
+  }
+
+  /**
+   * 
+   * @param type $useDecode
+   * @return string
+   */
+  protected function getDeleteMessage($useDecode = false):string 
+  {
+    $message = $this->getDeleteSuccessMessage();
+
+    if ($useDecode) {
+      $message = html_entity_decode($message);
     }
 
-    protected function getCustomDownloadAction(ArchivoAdjunto $archivoAdjunto, Request $request, $id){
-        return null;
+    return $message;
+  }
+
+  /**
+   * 
+   * @return string
+   */
+  protected function getDeleteSuccessMessage():string 
+  {
+    return 'La eliminaci&oacute;n se realiz&oacute; con &eacute;xito.';
+  }
+
+  /**
+   * 
+   * @return RedirectResponse
+   */
+  protected function getDeleteRedirectResponse($entity): RedirectResponse {
+    return $this->redirectToRoute($this->getURLPrefix() . "_index");
+  }
+
+  protected function downloadAction(Request $request, $id)
+  {
+    $em = $this->getDoctrine()->getManager();
+
+    $roleHabilitado = $this->getRoleHabilitadoDownloadAction($request, $id);
+
+    if($this->authChecker->isGranted($roleHabilitado)){
+      $archivoAdjunto = $em->getRepository('App:ArchivoAdjunto')->find($id);
+
+      if (!$archivoAdjunto) {
+        throw $this->createNotFoundException("No se puede encontrar la entidad ArchivoAdjunto.");
+      } 
+
+      $this->getCustomDownloadAction($archivoAdjunto, $request, $id);
+
+      $response = new BinaryFileResponse($this->parameterBag->get('kernel.project_dir') . '/public/uploads/archivo_adjunto/' . $archivoAdjunto->getCustomPath() . '/' . $archivoAdjunto->getNombreArchivo());
+      $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $archivoAdjunto->getNombre());
+      return $response;
+    } else {
+      return new Response();
     }
+  }
+
+  protected function getRoleHabilitadoDownloadAction(Request $request, $id)
+  {
+    return 'ROLE_USER';
+  }
+
+  protected function getCustomDownloadAction(ArchivoAdjunto $archivoAdjunto, Request $request, $id)
+  {
+    return null;
+  }
 
 }
