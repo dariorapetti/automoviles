@@ -63,7 +63,7 @@ class AppExtension extends AbstractExtension {
      * @param type $exchageRate
      * @return string
      */
-    public function moneyFormat($number, $decimals = 2, $simbol = '$', $decPoint = ',', $thousandsSep = '.', $exchageRate = 1) {
+    public function moneyFormat($number, $simbol = '$', $decimals = 2, $decPoint = ',', $thousandsSep = '.', $exchageRate = 1) {
         $valued = $number * $exchageRate;
 
         $price = number_format($valued, $decimals, $decPoint, $thousandsSep);

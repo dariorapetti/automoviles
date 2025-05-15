@@ -109,7 +109,7 @@ class VehiculoUsadoType extends VehiculoType
         'required' => false,
         'label' => 'Vencimiento Gnc',
         'attr' => array(
-          'class' => 'form-control datepicker',
+          'class' => 'form-control',
           'tabindex' => '5'))
       )
       ->add('vencimientoVtv', DateType::class, array(
@@ -120,7 +120,7 @@ class VehiculoUsadoType extends VehiculoType
         'required' => false,
         'label' => 'Vencimiento Vtv',
         'attr' => array(
-          'class' => 'form-control datepicker',
+          'class' => 'form-control',
           'tabindex' => '5'))
       )
       ->add('informeDominio', TextType::class, array(

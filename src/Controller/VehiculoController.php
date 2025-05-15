@@ -258,7 +258,7 @@ class VehiculoController extends BaseController
     } else {
       $request->attributes->set('form-error', true);
     }    
-    $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);
+    $breadcrumbs = $this->getNewBaseBreadcrumbs($form, $entity);    
 
     $parametros = array(
       'entity' => $entity,

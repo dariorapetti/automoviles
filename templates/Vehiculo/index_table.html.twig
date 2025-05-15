@@ -8,11 +8,11 @@
       "{{ entity.marca }}",
       "{{ entity.modelo }}",
       "{{ entity.dominio }}",
-      "{{ entity.cotizacion_dolar|default('-') }}",
-      "{{ entity.precio_compra_usd|default('-') }}",
-      "{{ entity.precio_venta_usd|default('-') }}",
-      "{{ entity.precio_compra_pesos|default('-') }}",
-      "{{ entity.precio_venta_pesos|default('-') }}",
+      "{{ entity.cotizacion_dolar|money_format }}",
+      "{{ entity.precio_compra_usd|money_format('U$S') }}",
+      "{{ entity.precio_venta_usd|money_format('U$S') }}",
+      "{{ entity.precio_compra_pesos|money_format }}",
+      "{{ entity.precio_venta_pesos|money_format }}",
       {
         "show" : " {{ path( "vehiculo_show", { "id": entity.id }) }}"
         ,"edit" : " {{ path( "vehiculo_edit", { "id": entity.id }) }}"
